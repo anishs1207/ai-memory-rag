@@ -5,6 +5,12 @@ node_modules
 .pnp
 .pnp.js
 
+testing-playground/agent-memory/.env
+testing-playground/agent-memory/dist
+testing-playground/agent-memory/node_modules
+
+NOTES.md
+
 # testing
 coverage
 
