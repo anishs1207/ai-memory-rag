@@ -21,7 +21,7 @@ build
 .swc/
 uploads
 
-resources-training
+testing-playground/resources
 
 # misc
 .DS_Store
