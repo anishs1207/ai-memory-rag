@@ -21,6 +21,8 @@ build
 .swc/
 uploads
 
+resources-training
+
 # misc
 .DS_Store
 *.pem
