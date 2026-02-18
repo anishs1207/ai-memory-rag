@@ -20,6 +20,8 @@ out/
 build
 .swc/
 
+uploads
+
 # misc
 .DS_Store
 *.pem

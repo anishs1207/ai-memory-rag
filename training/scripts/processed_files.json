@@ -1,0 +1,187 @@
+{
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\constitutional_law\\Directive_Principles.pdf": {
+    "hash": "31861a972f25d8d97e56dc08f1f0631c",
+    "chunks": 13,
+    "processed_chunks": 13
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\constitutional_law\\Fundamental_Rights.pdf": {
+    "hash": "78fae37697bbb4de314de30b92c21221",
+    "chunks": 98,
+    "processed_chunks": 98
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\constitutional_law\\Indian_Constitution.pdf": {
+    "hash": "53986eda11a1a0bc4cd3287b7173fa5c",
+    "chunks": 1194,
+    "processed_chunks": 1194
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\landmark-judgements-SCOI\\1-266Right_to_Privacy__Puttaswamy_Judgment-Chandrachud.pdf": {
+    "hash": "e2d92038a12e54adf05a1982ce26f245",
+    "chunks": 692,
+    "processed_chunks": 692
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\landmark-judgements-SCOI\\18.-Vishaka_and_Ors_vs_State_of_Rajasthan_and_Ors_13080519s970198COM805691.pdf": {
+    "hash": "c44c5be94e03451679a1b455c51c7a26",
+    "chunks": 32,
+    "processed_chunks": 32
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\landmark-judgements-SCOI\\Indira_Nehru_Gandhi_vs_Shri_Raj_Narain_&_Anr_on_7_November,_1975.pdf": {
+    "hash": "d1523ddc74b8c3180a7da1b8179955c6",
+    "chunks": 880,
+    "processed_chunks": 880
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\landmark-judgements-SCOI\\MANU_SC_0133_1978.pdf": {
+    "hash": "2109604e1bfc43f5ca546300c00562e1",
+    "chunks": 584,
+    "processed_chunks": 584
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\landmark-judgements-SCOI\\Mohd._Ahmed_Khan_vs_Shah_Bano_Begum_And_Ors_on_23_April,_1985.pdf": {
+    "hash": "e80dab068959612b1140359e760e7199",
+    "chunks": 80,
+    "processed_chunks": 80
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\landmark-judgements-SCOI\\Navtej-Johar-v.-Union-of-India.pdf": {
+    "hash": "fd64f8219197c8f6fd6ca354ea1d90bd",
+    "chunks": 975,
+    "processed_chunks": 975
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\landmark-judgements-SCOI\\S.R._Bommai_vs_Union_Of_India_on_11_March_1994-1-DONE.pdf": {
+    "hash": "4bc6958c818b70fdcfb8930194cc68a1",
+    "chunks": 1008,
+    "processed_chunks": 1008
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\landmark-judgements-SCOI\\Summary-of-the-Ayodhya-Verdict.pdf": {
+    "hash": "b4e921dce8fbefaed3bf7904dde37658",
+    "chunks": 203,
+    "processed_chunks": 203
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\landmark-judgements-SCOI\\Supreme-Court-of-India-Judgment-WPC-No.118-of-2016-Triple-Talaq.pdf": {
+    "hash": "3ffaa2029ed7b6858a407471e6cc40c8",
+    "chunks": 998,
+    "processed_chunks": 998
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\landmark-judgements-SCOI\\Suprme-Court-Judgement_-Kesavananda-Bharati-v-State-of-Kerala-1973.pdf": {
+    "hash": "0c75f542c6a1e2f063d39b70f540e4d7",
+    "chunks": 3334,
+    "processed_chunks": 3334
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\law-school-notes\\coi-4March2016.pdf": {
+    "hash": "ae4087c02c968bc699546d9f4a5568a8",
+    "chunks": 1487,
+    "processed_chunks": 1487
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\law-school-notes\\JURISPRUDENCE_Legal_Theory_F.pdf": {
+    "hash": "490ed0cecbf06a240e8a973dadd55676",
+    "chunks": 152,
+    "processed_chunks": 152
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\law-school-notes\\Law of Crimes-I BNS 2024.pdf": {
+    "hash": "ec915129e6e82173e412708f6070061c",
+    "chunks": 1199,
+    "processed_chunks": 1199
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\law-school-notes\\law-of-contract-amp-specific-relief-by-avtar-singh-12th-edition-12nbsped-9788194800453_compress.pdf": {
+    "hash": "1d5084962cd8f0b6dc9159a5b68f07dd",
+    "chunks": 4470,
+    "processed_chunks": 4470
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\law-school-notes\\pdfcoffee.com_e-book-psa-pillai-criminal-law-pdf-free.pdf": {
+    "hash": "418861899a5c91511c09cd295bb66e0b",
+    "chunks": 3966,
+    "processed_chunks": 3966
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\law-school-notes\\pdfcoffee.com_law-of-evidence-11-pdf-free.pdf": {
+    "hash": "1543b37373aaf1e7fd2c2ec31618f1c2",
+    "chunks": 44,
+    "processed_chunks": 44
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\law-school-notes\\pdfcoffee.com_law-of-tort-bangia-pdf-free.pdf": {
+    "hash": "d2a6f18ff49e36769836c9b919be55f3",
+    "chunks": 2797,
+    "processed_chunks": 2797
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\law-school-notes\\pm-bakshi-constitution-of-india_compress.pdf": {
+    "hash": "cf0e2751f94ff6d5ef42225702037539",
+    "chunks": 1546,
+    "processed_chunks": 1546
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\law-school-notes\\toaz.info-ckthakker-takwani-lectures-on-administrative-law-4-edition-eastern-book-com-pr_6f328f8751cfc864d0c93d64e25d52c6.pdf": {
+    "hash": "352e03a8a8cc9a40af84454d81465a40",
+    "chunks": 42,
+    "processed_chunks": 42
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\law-school-notes\\toaz.info-company-law-by-avtar-singh-pr_d9e5739ea479bfed383972f574bdf619.pdf": {
+    "hash": "c10809b396bc5cfd77b77f955e0eda71",
+    "chunks": 3802,
+    "processed_chunks": 3802
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\law-school-notes\\toaz.info-different-committees-under-bar-council-pr_7f676a123e6d3afe1ff6f50a2983d011.pdf": {
+    "hash": "dc76150352bf75225822a9be9b54c731",
+    "chunks": 59,
+    "processed_chunks": 59
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\legal-commentaries-books\\IPC-Ratanlal.pdf": {
+    "hash": "260708203008d5b956c89920c5645ddb",
+    "chunks": 6142,
+    "processed_chunks": 6142
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\major_acts\\Companies.pdf": {
+    "hash": "3c900cbeff7b4de705bb794ce3a1eb0a",
+    "chunks": 1681,
+    "processed_chunks": 1681
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\major_acts\\Consumer Protection Act.pdf": {
+    "hash": "87ccc0b50be21adc1040a31ad784dae0",
+    "chunks": 178,
+    "processed_chunks": 178
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\major_acts\\CPC.pdf": {
+    "hash": "bc2dbbcee713187c29b0171c797ebeea",
+    "chunks": 1377,
+    "processed_chunks": 1377
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\major_acts\\CrPC.pdf": {
+    "hash": "13d06b97f59b2a660ac98d4898736e49",
+    "chunks": 1158,
+    "processed_chunks": 1158
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\major_acts\\IncomeTaxAct.pdf": {
+    "hash": "9fb6bd8e6c8b666f329eafa0a3dcbc4e",
+    "chunks": 4003,
+    "processed_chunks": 4003
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\major_acts\\IndinEvidenceAct.pdf": {
+    "hash": "7a45f885eb93bd4e9c25a25673830621",
+    "chunks": 244,
+    "processed_chunks": 244
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\major_acts\\Intellectual_Property_Laws.pdf": {
+    "hash": "cc4396254a5e52e423cca208791ad7e6",
+    "chunks": 131,
+    "processed_chunks": 131
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\major_acts\\IPC.pdf": {
+    "hash": "bb1c1c637838b036c58b9e0e87a3b0e2",
+    "chunks": 643,
+    "processed_chunks": 643
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\major_acts\\ITA.pdf": {
+    "hash": "6b5116fff47f8e5430bb8a1e6e6916da",
+    "chunks": 165,
+    "processed_chunks": 165
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\major_acts\\RTI.pdf": {
+    "hash": "81f1f1dbf0b21b7e051da0231f28ecd0",
+    "chunks": 92,
+    "processed_chunks": 92
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\major_acts\\the_environment_protection_act,1986.pdf": {
+    "hash": "41d2f70f1011fbd97e85ba22c325afed",
+    "chunks": 37,
+    "processed_chunks": 37
+  },
+  "apps\\backend\\src\\assistants\\legal-coach\\resources-rag\\major_acts\\the_industrial_disputes_act.pdf": {
+    "hash": "55de33eee28273b7093f12e4c66bf6e9",
+    "chunks": 315,
+    "processed_chunks": 315
+  }
+}
