@@ -4,21 +4,27 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "npx tsc && node dist/index.js"
+    "dev": "npx tsc && npx tsc-alias && node dist/index.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/multer": "^2.0.0",
+    "tsc-alias": "^1.8.16",
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@google/genai": "^1.42.0",
     "@pinecone-database/pinecone": "^6.1.4",
     "@qdrant/js-client-rest": "^1.16.2",
+    "@types/axios": "^0.9.36",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "axios": "^1.13.5",
+    "better-sqlite3": "^12.6.2",
     "chromadb": "^3.2.2",
     "cors": "^2.8.5",
     "express": "^5.2.1",

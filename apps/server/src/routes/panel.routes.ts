@@ -1,10 +1,10 @@
-// import { Router } from "express";
-// import { generateAgentPersonas, conductElection, takeActionOnIssue } from "@/controllers/panel.controller.js";
+import { Router } from "express";
+import { generateAgentPersonas, conductElection, takeActionOnIssue } from "@/controllers/panel.controller.js";
 
-// const router = Router();
+const router = Router();
 
-// router.route("/generate-personas").get(generateAgentPersonas);
-// router.route("/conduct-election").get(conductElection);
-// router.route("/take-action").get(takeActionOnIssue);
+router.route("/generate-personas").post(generateAgentPersonas);
+router.route("/conduct-election").post(conductElection);
+router.route("/take-action").post(takeActionOnIssue);
 
-// export default router;
+export default router;

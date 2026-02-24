@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-const BetterSqlite3 = require("better-sqlite3");
+import BetterSqlite3 from "better-sqlite3";
 
 export interface Embedding {
   content: string;
@@ -78,9 +78,11 @@ export class VectorStore {
           continue;
         }
 
+
+        interface EmbeddingRow { metadata: string; vector: Buffer; }
         const rows = db
           .prepare(`SELECT metadata, vector FROM embeddings_queue`)
-          .all();
+          .all() as EmbeddingRow[];
 
         for (const row of rows) {
           try {

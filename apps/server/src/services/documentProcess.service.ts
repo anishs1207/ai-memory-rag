@@ -9,12 +9,10 @@ export const extractTextFromFile = async (file: File): Promise<string> => {
   const buffer = Buffer.from(arrayBuffer);
 
   if (ext === "pdf") {
-    // Dynamic import for ESM pdf module
-    const pdfModule = await import("pdf-parse"); 
-    // pdf function is exported directly (not default)
-    //@ts-expect-error
-    const pdfFn = pdfModule.pdf ?? pdfModule.PDFParse ?? pdfModule; 
-    const pdfData = await pdfFn(buffer);
+    const { PDFParse } = await import("pdf-parse");
+    const parser = new PDFParse({ data: buffer });
+    const pdfData = await parser.getText();
+    await parser.destroy();
     return pdfData.text;
   }
 

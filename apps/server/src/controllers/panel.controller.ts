@@ -1,530 +1,306 @@
-// import type { Request, Response } from "express";
-// import { z } from "zod";
-// import {geminiClient, parseResult} from "@/utils/index.js";
+import type { Request, Response } from "express";
+import { z } from "zod";
+import { geminiClient, parseResult, getText } from "@/utils/index.js";
 
-// type Agent = {
-//   id: number;
-//   name: string;
-//   background: string;
-//   ideology: string;
-//   speech: string;
-// };
+type Agent = {
+  id: number;
+  name: string;
+  background: string;
+  ideology: string;
+  speech: string;
+  traits: string[];
+  hiddenGoal: string;
+};
 
-// type Vote = {
-//   voterId: number;
-//   votedForId: number;
-//   reason: string;
-// };
+type VoteResult = {
+  voterId: number;
+  votedForId: number;
+  reason: string;
+};
 
-// type ElectionResult = {
-//   agents: Agent[];
-//   votes: Vote[];
-//   topLeaders: Agent[];
-//   leaderSpeeches: { [leaderId: number]: string };
-// };
+type TopCandidate = {
+  candidateId: number;
+  votes: number;
+};
 
-// type TopLeaderResult = {
-//   candidateId: number;
-//   votes: number;
-// };
+type AgentWithVotes = Agent & {
+  votes: number;
+};
 
-// type AgentWithVotes = Agent & {
-//   votes: number;
-// };
+type EnrichedVote = {
+  voter: Agent;
+  votedFor: Agent;
+  reason: string;
+};
 
-// type VoteResult = {
-//   voterId: number;
-//   votedForId: number;
-//   reason: string;
-// };
+type EnrichedLeader = Agent & {
+  votes: number;
+};
 
-// type EnrichedVote = {
-//   voter: Agent;
-//   votedFor: Agent;
-//   reason: string;
-// };
+const agentSchema = z.object({
+  id: z.number().int().min(1),
+  name: z.string().min(1),
+  background: z.string().min(1),
+  ideology: z.string().min(1),
+  speech: z.string().min(1),
+  traits: z.array(z.string()),
+  hiddenGoal: z.string(),
+});
 
-// type TopCandidate = {
-//   candidateId: number;
-//   votes: number;
-// };
+function getTop5Candidates(votes: VoteResult[]): TopCandidate[] {
+  const voteCount: Record<number, number> = {};
+  votes.forEach((v) => {
+    voteCount[v.votedForId] = (voteCount[v.votedForId] || 0) + 1;
+  });
 
-// type EnrichedLeader = Agent & {
-//   votes: number;
-// };
+  let sortedCandidates: TopCandidate[] = Object.keys(voteCount)
+    .map(Number)
+    .map((id) => ({
+      candidateId: id,
+      votes: voteCount[id] || 0,
+    }));
 
-// const agentSchema = z.object({
-//   id: z.number().int().min(1),
-//   name: z.string().min(1),
-//   background: z.string().min(1),
-//   ideology: z.string().min(1),
-//   speech: z.string().min(1),
-// });
+  sortedCandidates.sort((a, b) => b.votes - a.votes);
 
-// function getTop5Candidates(votes: Vote[]): TopCandidate[] {
-//   // Count votes
-//   const voteCount: Record<number, number> = {};
-//   votes.forEach((v) => {
-//     voteCount[v.votedForId] = (voteCount[v.votedForId] || 0) + 1;
-//   });
+  if (sortedCandidates.length > 5) {
+    const fifthVotes = sortedCandidates[4]!.votes;
+    const tieCandidates = sortedCandidates.filter((c) => c.votes === fifthVotes);
 
-//   // Convert to array and sort by votes descending
-//   let sortedCandidates: TopCandidate[] = Object.keys(voteCount).map(Number).map((id) => ({
-//     candidateId: id,
-//     votes: voteCount[id],
-//   }));
+    if (tieCandidates.length > 1) {
+      const chosen = tieCandidates[Math.floor(Math.random() * tieCandidates.length)]!;
+      sortedCandidates = sortedCandidates
+        .filter((c) => c.votes > fifthVotes)
+        .concat(chosen);
+    }
+    sortedCandidates = sortedCandidates.slice(0, 5);
+  }
 
-//   sortedCandidates.sort((a, b) => b.votes - a.votes);
+  return sortedCandidates;
+}
 
-//   // Handle ties for the 5th place
-//   if (sortedCandidates.length > 5) {
-//     const fifthVotes = sortedCandidates[4].votes;
-//     const tieCandidates = sortedCandidates.filter((c) => c.votes === fifthVotes);
+function mapTopCandidatesToAgents(
+  top5: TopCandidate[],
+  agents: Agent[]
+): AgentWithVotes[] {
+  const agentMap = new Map<number, Agent>();
+  agents.forEach((agent) => agentMap.set(agent.id, agent));
 
-//     if (tieCandidates.length > 1) {
-//       // Randomly pick one among tied candidates
-//       const chosen = tieCandidates[Math.floor(Math.random() * tieCandidates.length)];
-//       // Keep all above 5th place, replace 5th with chosen
-//       sortedCandidates = sortedCandidates
-//         .filter((c) => c.votes > fifthVotes)
-//         .concat(chosen);
-//     }
+  return top5
+    .map(({ candidateId, votes }) => {
+      const agent = agentMap.get(candidateId);
+      if (!agent) return null;
+      return { ...agent, votes };
+    })
+    .filter((a): a is AgentWithVotes => a !== null);
+}
 
-//     // Take top 5
-//     sortedCandidates = sortedCandidates.slice(0, 5);
-//   }
+function enrichVotesWithAgents(
+  votingResult: VoteResult[],
+  agents: Agent[]
+): EnrichedVote[] {
+  const agentMap = new Map<number, Agent>();
+  agents.forEach((agent) => agentMap.set(agent.id, agent));
 
-//   return sortedCandidates;
-// }
+  return votingResult
+    .map((vote) => {
+      const voter = agentMap.get(vote.voterId);
+      const votedFor = agentMap.get(vote.votedForId);
+      if (!voter || !votedFor) return null;
+      return { voter, votedFor, reason: vote.reason };
+    })
+    .filter((v): v is EnrichedVote => v !== null);
+}
 
-// function mapTopCandidatesToAgents(
-//   top5: TopCandidate[],
-//   agents: Agent[]
-// ): AgentWithVotes[] {
-//   // Create lookup for agents by id
-//   const agentMap = new Map<number, Agent>();
-//   agents.forEach((agent) => agentMap.set(agent.id, agent));
+function getTopVotedLeaders(
+  votes: VoteResult[],
+  agents: Agent[]
+): EnrichedLeader[] {
+  const voteMap: Record<number, number> = {};
+  for (const vote of votes) {
+    voteMap[vote.votedForId] = (voteMap[vote.votedForId] || 0) + 1;
+  }
 
-//   // Merge vote count into agent object
-//   return top5
-//     .map(({ candidateId, votes }) => {
-//       const agent = agentMap.get(candidateId);
-//       if (!agent) return null;
+  if (Object.keys(voteMap).length === 0) return [];
 
-//       return {
-//         ...agent,
-//         votes,
-//       };
-//     })
-//     .filter((a): a is AgentWithVotes => a !== null);
-// }
+  const maxVotes = Math.max(...Object.values(voteMap));
+  return agents
+    .filter((agent) => voteMap[agent.id] === maxVotes)
+    .map((agent) => ({ ...agent, votes: voteMap[agent.id] || 0 }));
+}
 
-// function enrichVotesWithAgents(
-//   votingResult: VoteResult[],
-//   agents: Agent[]
-// ): EnrichedVote[] {
-//   const agentMap = new Map<number, Agent>();
-//   agents.forEach((agent) => agentMap.set(agent.id, agent));
+export const generateAgentPersonas = async (req: Request, res: Response) => {
+  try {
+    const bodySchema = z.object({
+      count: z.number().int().min(1).max(50),
+    });
+    const { count } = bodySchema.parse(req.body);
 
-//   return votingResult
-//     .map((vote) => {
-//       const voter = agentMap.get(vote.voterId);
-//       const votedFor = agentMap.get(vote.votedForId);
+    const prompt = `
+Generate ${count} unique and diverse AI agents for a futuristic leadership panel simulation.
+Each agent should have a distinct personality, from technocrats and environmentalists to radicals and corporate loyalists.
 
-//       if (!voter || !votedFor) return null;
+For each agent, provide:
+- id (numeric, starting from 1)
+- name (full name)
+- background (detailed professional background)
+- ideology (core philosophical belief system)
+- speech (a persuasive pitch for leadership)
+- traits (array of 3 personal traits e.g. "Pragmatic", "Ambitious", "Compassionate")
+- hiddenGoal (a secret motivation that drives their decisions)
 
-//       return {
-//         voter,
-//         votedFor,
-//         reason: vote.reason,
-//       };
-//     })
-//     .filter((v): v is EnrichedVote => v !== null);
-// }
+Return ONLY a JSON array of objects.
+`;
 
-// function getTopVotedLeaders(
-//   votes: Vote[],
-//   agents: Agent[]
-// ): EnrichedLeader[] {
-//   // Count votes per candidate
-//   const voteMap: Record<number, number> = {};
+    const aiResponse = await geminiClient(prompt);
+    const agents = parseResult(aiResponse);
 
-//   for (const vote of votes) {
-//     voteMap[vote.votedForId] =
-//       (voteMap[vote.votedForId] || 0) + 1;
-//   }
+    if (!Array.isArray(agents)) {
+      throw new Error("Failed to parse agents from AI response");
+    }
 
-//   if (Object.keys(voteMap).length === 0) return [];
+    return res.status(200).json({ success: true, count: agents.length, agents });
+  } catch (err: any) {
+    console.error("generateAgentPersonas error:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
 
-//   // Find max votes
-//   const maxVotes = Math.max(...Object.values(voteMap));
+export const conductElection = async (req: Request, res: Response) => {
+  try {
+    const { agents } = req.body;
+    if (!Array.isArray(agents)) {
+      return res.status(400).json({ success: false, error: "Agents array is required" });
+    }
 
-//   // Enrich top leaders with agent data
-//   return agents
-//     .filter(
-//       (agent) => voteMap[agent.id] === maxVotes
-//     )
-//     .map((agent) => ({
-//       ...agent,
-//       votes: voteMap[agent.id],
-//     }));
-// }
+    const electionPrompt = `
+Conduct a simulated election among these AI agents:
+${JSON.stringify(agents)}
 
-// export const generateAgentPersonas = async (req: Request, res: Response) => {
-//   try {
-//     // Validate input using zod
-//     const bodySchema = z.object({
-//       count: z.number().int().min(1).max(50),
-//     });
+Rules for the Simulation:
+1. Every agent MUST vote for exactly one other agent (cannot vote for self).
+2. The choice must be motivated by the voter's ideology, traits, and hidden goals compared to the candidate's pitch.
+3. Be creative with the reasons—some agents might vote for allies, others might strategically vote to block a rival.
 
-//     const { count } = bodySchema.parse(req.body);
+Return ONLY a JSON array of objects with: voterId, votedForId, reason.
+`;
 
-//     // Prepare prompt for Gemini
-//     const prompt = `
-// Generate ${count} unique AI agents for a leadership panel simulation.
-// For each agent, provide:
-// - id (numeric, starting from 1)
-// - name (full name)
-// - background (short paragraph)
-// - ideology (short paragraph)
-// - speech (short speech on why agent thinks they should be elected, basaed on basckgroudn and ideology)
-// Return the result as a JSON array of objects like:
-// [
-//   {
-//     "id": 1,
-//     "name": "John Doe",
-//     "background": "...",
-//     "ideology": "...",
-//     "speech": "..."
-//   }
-// ]
-// Ensure the JSON is parseable and complete.
-// `;
+    const aiResponse = await geminiClient(electionPrompt);
+    const votingResult = parseResult(aiResponse);
 
-//     // Call Gemini API
-//     const result = await ai.models.generateContent({
-//       model: "gemini-2.5-flash",
-//       contents: [createUserContent(prompt)],
-//     });
+    const enrichedVotes = enrichVotesWithAgents(votingResult, agents);
+    const topLeadersWithDetails = mapTopCandidatesToAgents(getTop5Candidates(votingResult), agents);
 
-//     console.log(result.response?.text?.());
+    const votingLeaderPrompt = `
+The following 5 candidates have reached the final council. Now they will vote among themselves to choose a Supreme Leader.
+Candidates:
+${JSON.stringify(topLeadersWithDetails)}
 
-//     // Extract text from response
-//     const responseText = result.response?.text?.() || "";
+They are now in a high-stakes backroom negotiation. Based on their Hidden Goals and Ideologies, who do they support?
+Return ONLY a JSON array of objects with: voterId, votedForId, reason.
+`;
 
-//     // Try to parse the JSON safely
-//     let agents: Agent[] = [];
-//     try {
-//       agents = JSON.parse(responseText);
-//     } catch (e) {
-//       console.error("Failed to parse agents JSON:", e);
-//       return res.status(500).json({
-//         success: false,
-//         error: "Failed to parse agent personas from AI response",
-//         rawResponse: responseText,
-//       });
-//     }
+    const leaderResponse = await geminiClient(votingLeaderPrompt);
+    const votesLeaders = parseResult(leaderResponse);
+    const topLeaders = getTopVotedLeaders(votesLeaders, agents);
 
-//     return res.status(200).json({
-//       success: true,
-//       count: agents.length,
-//       agents,
-//     });
-//   } catch (err: any) {
-//     console.error("Error in generateAgentPersonas:", err);
-//     return res.status(500).json({
-//       success: false,
-//       error: err.message || "Internal server error",
-//     });
-//   }
-// };
+    return res.status(200).json({
+      success: true,
+      enrichedVotes,
+      topLeadersWithDetails,
+      topLeaders,
+    });
+  } catch (err: any) {
+    console.error("conductElection error:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
 
-// export const conductElection = async (req: Request, res: Response) => {
-//   try {
-//     const { agents } = req.body;
+export const takeActionOnIssue = async (req: Request, res: Response) => {
+  try {
+    const { agents, top5Panel, chosenLeader, userTopic } = req.body;
+    if (!agents || !top5Panel || !chosenLeader) {
+      return res.status(400).json({ success: false, error: "Missing required fields" });
+    }
 
-//     let allValid = true;
+    const issuePrompt = `
+Generate a complex, high-stakes crisis or policy issue related to: ${userTopic || "General Governance"}.
+The issue should have three distinct, conflicting paths of action.
 
-//     agents.forEach((agent: Agent) => {
-//         const result = agentSchema.safeParse(agent);
-//         if (!result.success) {
-//             allValid = false;
-//             return {
-//                 success: false,
-//                 error: "One or more agents failed validation.",
-//             }
-//         }
-//     });
-   
-//     if (!allValid) {
-//       return res.status(400).json({
-//         success: false,
-//         error: "One or more agents failed validation.",
-//       });
-//     } 
+Return ONLY a JSON object:
+{
+  "issue": "Detailed description of the crisis",
+  "actions": [
+    {"id": "A", "label": "Path of Logic", "description": "..."},
+    {"id": "B", "label": "Path of Compassion", "description": "..."},
+    {"id": "C", "label": "Path of Power", "description": "..."}
+  ]
+}
+`;
 
-//     const electionPrompt = `
-//     <scenario>
-//         Conduct an Election for the following people,
-//         Based on a candidate's background, ideology, and speech & user's
-//         background & ideology make them choose whom to vote for.
-//     </scenario>
+    const issueResp = await geminiClient(issuePrompt);
+    const issue = parseResult(issueResp);
 
-//     <agents>
-//     These are the agents that will be voting for each other:
-//      ${JSON.stringify(agents)}
+    const speechPrompt = `
+The following crisis has occurred:
+${issue.issue}
+
+Paths of Action:
+${issue.actions.map((a: any) => `${a.id}: ${a.label} - ${a.description}`).join("\n")}
+
+The Council (top 5 panel) is debating. The Leader (${chosenLeader.name}) has a heavy influence but the council's consensus matters for stability.
+
+For each Council Member, provide their reaction, their chosen path, and their reasoning (influenced by their HIDDEN GOAL).
+Council Members:
+${JSON.stringify(top5Panel)}
+
+Return ONLY a JSON array:
+[{
+  "candidateId": number,
+  "actionId": "A" | "B" | "C",
+  "reason": "Dramatic reasoning reflecting their personality"
+}]
+`;
+
+    const actionResp = await geminiClient(speechPrompt);
+    const actionVotes = parseResult(actionResp);
+
+    // Calculate majority action
+    const counts: Record<string, number> = { A: 0, B: 0, C: 0 };
+    actionVotes.forEach((v: any) => {
+      counts[v.actionId] = (counts[v.actionId] || 0) + 1;
+    });
     
-//     NOTE: 
-//     1. user cannot vote for themselves
-//     2. voting criteria is based on user's ideology & background & speech and candidate's ideology & background & speech
-   
-//     </agents>
+    const finalActionId = Object.entries(counts).reduce((a, b) => b[1] > a[1] ? b : a)[0];
+    const finalAction = issue.actions.find((a: any) => a.id === finalActionId);
 
-//     <detail>
-//         voterId: the id of the voter
-//         votedForId: the id of the canidate that user has voted for
-//         reason: 
-//         - why the user has voted for that candidate (in 1-2 lines), which should be 
-//         - based on user's ideology & background & speech and candidate's ideology & background & speech (you can take names for that candidate vs other canidates also)
-//     </detail>
+    const outcomePrompt = `
+The council has decided to take: ${finalAction.label} (${finalAction.description}) in response to ${issue.issue}.
 
-//     <output>
-//     Return the result as a JSON array of objects like:
-//     [
-//       {
-//         "voterId": 1,
-//         "votedForId": 2,
-//         "reason": "..."
-//       }
-//     ]
-//     </output>
-//     `;
+Based on this decision, describe:
+1. The Immediate Outcome (1-2 sentences)
+2. The Public Approval Change (-30 to +30)
+3. One unforeseen consequence (dramatic)
 
-//     const result = await geminiClient(electionPrompt);
+Return ONLY a JSON object:
+{
+  "outcome": "...",
+  "approvalChange": number,
+  "consequence": "..."
+}
+`;
 
-//     if (!result) {
-//         return res.status(500).json({
-//             success: false,
-//             error: "Failed to generate election results",
-//         });
-//     } 
+    const outcomeResp = await geminiClient(outcomePrompt);
+    const outcome = parseResult(outcomeResp);
 
-//     const votingResult = parseResult(result);
-
-//     const enrichedVotes = enrichVotesWithAgents(votingResult, agents);
-//     // TRODO RETURN: it includes all all agents with whom they voted 
-
-//     const topLeadersWithDetails = mapTopCandidatesToAgents(getTop5Candidates(votingResult), agents);
-//     // TRODO RETURN: top 5 leaders and asosicated habuour and idloy etc
-
-//     const votingLeaderPrompt = `
-//     <scenario>
-//         Given the top5 choosen people, now they vote to choose a leader
-//     </scenario>
-
-//     <candidates>
-//     Following are the top 5 choosen candidates by the people, 
-//     Now according to each of their background, ideology, and speech & other candidate's
-//     background & ideology make them choose whom to vote for.
-
-//     ${JSON.stringify(topLeadersWithDetails)}
-//     </candidates>
-
-//     <detail>
-//         voterId: the id of the voter
-//         votedForId: the id of the canidate that user has voted for
-//         reason: 
-//         - why the user has voted for that candidate (in 1-2 lines), which should be 
-//         - based on user's ideology & background & speech and candidate's ideology & background & speech (you can take names for that candidate vs other canidates also)
-//     </detail>
-
-//     <output>
-//     Return the result as a JSON array of objects like:
-//     [
-//       {
-//         "voterId": 1,
-//         "votedForId": 2,
-//         "reason": "..."
-//       }
-//     ]
-//     </output>
-//     `;
-
-//     const speechResp = await geminiClient(votingLeaderPrompt);
-
-//     if (!speechResp) {
-//         return res.status(500).json({
-//             success: false,
-//             error: "Failed to generate election results",
-//         });
-//     }
-
-//     const votesLeaders = parseResult(speechResp);
-
-//     const topLeaders = getTopVotedLeaders(votesLeaders, agents);
-
-//     return res.status(200).json({
-//         success: true,
-//         // return the enriched agents
-//         enrichedVotes,
-//         // enriched leaders 5
-//         topLeadersWithDetails,
-//         // return the top leaders enriched
-//         topLeaders,
-//     })
-
-//   } catch (err: any) {
-//     console.error("simulateElection error:", err);
-//     return res.status(500).json({ success: false, error: err.message });
-//   }
-// };
-
-// export const takeActionOnIssue = async(req:Request, res: Response) => {
-//     try {
-//         const {agents, top5Panel, choosenLeader} = req.body; 
-
-//         if (!agents || !top5Panel || !choosenLeader) {
-//             return res.status(400).json({
-//                 success: false,
-//                 error: "Missing required fields",
-//             })
-//         }
-//         // also handle validations for these fields
-//         // generate an issue &  and 5 actions which can be taken
-
-//         const issuePrompt = `
-//         <scenario>
-//         Generate an issue and 5 actions which can be taken
-//         </scenario>
-        
-//         <detail>
-//         issue: the issue that needs to be addressed
-//         actions: 3 actions which can be taken to address the issue
-//         </detail>
-        
-//         <output>
-//         Return the result as a JSON object like:
-//         {
-//             "issue": "...",
-//             "actions": ["...", "...", "..."]
-//         }
-//         </output>
-//         `;
-
-//         const issueResp = await geminiClient(issuePrompt);
-
-//         if (!issueResp) {
-//             return res.status(500).json({
-//                 success: false,
-//                 error: "Failed to generate issue",
-//             })
-//         }
-
-//         const issue = parseResult(issueResp);
-
-//         if (!issue) {
-//             return res.status(500).json({
-//                 success: false,
-//                 error: "Failed to generate issue",
-//             })
-//         }
-
-//         // now we have the issues and now we want each person to hold their view on that they think is the best option to take
-
-//         const speechPrompt = `
-//         <scenario>
-//     Now each of the top5 panel voted by the public are voting on what action to 
-//     take on this action
-
-//     ${JSON.stringify(issue)}
-//         </scenario>
-        
-//         <detail>
-//         issue: the issue that needs to be addressed
-//         actions: 3 actions which can be taken to address the issue
-//         </detail>
-        
-//         <output>
-//         Return the result as a JSON object like:
-//             [{
-//                 canidateId: 1,
-//                 actionVoted: ""
-//                 reason: ""
-//             }]
-//         </output>
-//         `;
-
-       
-//         // and all have eqaul vote and vote which option they want to choose
-//         // and ensure no tie
-
-
-//         // and then once choosen on what to do takes that actions
-
-//         const reactioPrompt = `
-//         <scenario>
-//         The top 5 panel has takes the action for this iussuel, now
-//         based on each candidate, their background, ideology, speech and 
-//         which action they would take and the reason why
-//         </scenario>
-
-//         <output>
-//         JSON 
-//         [{
-//             agentId: 1,
-//             actionTaken: "",
-//             reason: ""
-//         }]
-//         </output>
-//         `;
-
-//         // function to coutn up the votes etc
-
-        
-//         // then see the reaction of that see views of people basaed on what action they think should be taen
-//         // and then based on that see it reflects public option
-//         // the decsion should be taken based on their own odieloy & heavbuour etc
-//         // then see what the public thunks about it and then based on that it see it majuoity opntin i s astiy
-//         // END THERE ONLY
-        
-        
-//         // each leader tells which action to take and why
-//         // and then each canidate vote
-
-//     } catch(err) {
-
-//     }
-// }
-
-
-
-//     // "votes": [
-//     // {
-//     //   "voter": {
-//     //     "id": 1,
-//     //     "name": "Aarav Patel",
-//     //     "background": "Urban policy researcher...",
-//     //     "ideology": "Data-driven governance...",
-//     //     "speech": "Leadership must be rational..."
-//     //   },
-//     //   "votedFor": {
-//     //     "id": 2,
-//     //     "name": "Riya Sharma",
-//     //     "background": "Grassroots organizer...",
-//     //     "ideology": "Social equity...",
-//     //     "speech": "Our future depends on..."
-//     //   },
-//     //   "reason": "Strong alignment with social equity goals"
-//     // }
-
-
-
-
-// // [{
-// //         "id": 1,
-// //         "name": "Aarav Patel",
-// //         "background": "Urban policy researcher...",
-// //         "ideology": "Data-driven governance...",
-// //         "speech": "Leadership must be rational..."
-// //       }]
-
+    return res.status(200).json({
+      success: true,
+      issue,
+      actionVotes,
+      finalAction,
+      outcome
+    });
+  } catch (err: any) {
+    console.error("takeActionOnIssue error:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};

@@ -8,15 +8,7 @@ dotenv.config({
 });
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-// const __dirname = path.resolve();
-// if (process.env.NODE_ENV === "production") {
-//   app.use(express.static(path.join(__dirname, "../frontend/dist")));
-
-//   app.get("*", (req, res) => {
-//     res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
-//   });
-// }
+const PORT = process.env.PORT || 3001;
 
 app.use(
   cors({
@@ -31,9 +23,17 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(express.static("public"));
 
+// ── Routes ─────────────────────────────────────────────────
+import messageRouter from "./routes/message.routes.js";
+import panelRouter from "./routes/panel.routes.js";
+
+app.use("/api/v1/message", messageRouter);
+app.use("/api/v1/panel", panelRouter);
+
+// ───────────────────────────────────────────────────────────
+
 app.listen(PORT, () => {
-  console.log(`Server started at localhost:${PORT}`);
+  console.log(`Server started at http://localhost:${PORT}`);
 });
 
-
-export {app};
+export { app };

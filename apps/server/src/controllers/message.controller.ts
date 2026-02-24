@@ -1,9 +1,9 @@
 import type { Request, Response } from "express";
 import {runRAG, generateLegalPrompt, generateFinancePrompt} from "@/services/rag.service.js";
-import { geminiClient, parseResult } from "@/utils/index.js";
+import { geminiClient, parseResult, getText } from "@/utils/index.js";
 import fs from "fs";
 import path from "path";
-import * as pdf from "pdf-parse";
+import { PDFParse } from "pdf-parse";
 import { randomUUID } from "crypto";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { embedText } from "@/lib/embedding.js";
@@ -28,7 +28,7 @@ const ChatLegal = async(req: Request, res: Response) => {
         })
     }
 
-    const embeddingContexts: EmbeddingContext[] = await runRAG(prompt, "../../legal-vector-db");
+    const embeddingContexts: EmbeddingContext[] = await runRAG(prompt, "./legal-vector-db");
 
     console.log("context:", embeddingContexts);
 
@@ -43,25 +43,19 @@ const ChatLegal = async(req: Request, res: Response) => {
         })
     }
 
-    const parsed = parseResult(aiResponse);
-
-    if (!parsed) {
-        return res.status(400).json({
-            success: false,
-            error: "Parsed Response is not given"
-        })
-    }
+    const result = parseResult(aiResponse);
+    const responseText = typeof result === 'string' ? result : (result.response || JSON.stringify(result));
 
     return res.status(200).json({
         success: true,
-        data: parsed
+        data: responseText
     })
 
-    } catch(err) {
-        console.log("Error")
+    } catch(err: any) {
+        console.error("ChatLegal Error:", err)
         return res.status(500).json({
             success: false,
-            error: "Internal Server Error"
+            error: err.message || "Internal Server Error"
         })
     }
     
@@ -78,7 +72,7 @@ const ChatFinance = async(req: Request, res: Response) => {
             })
         }
 
-        const embeddingContexts: EmbeddingContext[] = await runRAG(prompt, "../../finance-vector-db");
+        const embeddingContexts: EmbeddingContext[] = await runRAG(prompt, "./finance-vector-db");
 
         console.log("context:", embeddingContexts);
 
@@ -93,25 +87,19 @@ const ChatFinance = async(req: Request, res: Response) => {
             })
         }
 
-        const parsed = parseResult(aiResponse);
-
-        if (!parsed) {
-            return res.status(400).json({
-                success: false,
-                error: "Parsed Response is not given"
-            })
-        }
+        const result = parseResult(aiResponse);
+        const responseText = typeof result === 'string' ? result : (result.response || JSON.stringify(result));
 
         return res.status(200).json({
             success: true,
-            data: parsed
+            data: responseText
         })
        
-    } catch(err) {
-        console.log("Error")
+    } catch(err: any) {
+        console.error("ChatFinance Error:", err)
         return res.status(500).json({
             success: false,
-            error: "Internal Server Error"
+            error: err.message || "Internal Server Error"
         })
     }
 }
@@ -128,49 +116,51 @@ const ChatGeneral = async(req: Request, res: Response) => {
         }
 
         const bigPrompt = `
-        <agent>
-        You are as assiatnt
-        </agemt>
+          <agent>
+          You are a helpful general assistant. Answer clearly and concisely.
+          </agent>
 
-        user asked:
-        ${prompt}
+          user asked:
+          ${prompt}
         `
         const aiResponse = await geminiClient(bigPrompt);
+
+        console.log("apiResponse", aiResponse);
 
         if (!aiResponse) {
             return res.status(400).json({
                 success: false,
-                error: "AI Response is not given"
+                error: "Error getting response"
             })
         }
 
-        const parsed = parseResult(aiResponse);
+        const responseText = getText(aiResponse);
 
-        if (!parsed) {
-            return res.status(400).json({
-                success: false,
-                error: "Parsed Response is not given"
-            })
-        }
+        console.log("responseText", responseText);
 
         return res.status(200).json({
             success: true,
-            data: parsed
+            data: responseText
         })
 
     } catch(err: any) {
-        console.log("Error")
+        console.error("ChatGeneral Error:", err)
         return res.status(500).json({
             success: false,
-            error: "Internal Server Error"
+            error: err.message || "Internal Server Error"
         })
     }
 }
 
 // refer: https://app.pinecone.io/organizations/-OkIhbKdrSTCm9S_ivLE/projects/8d67056d-52d7-414d-b0c6-5a8d155d0840/keys
-const pinecone = new Pinecone({
-  apiKey: process.env.PINECONE_API_KEY!,
-});
+// Lazy singleton: instantiated on first use so dotenv has already run
+let _pinecone: Pinecone | null = null;
+function getPinecone(): Pinecone {
+  if (!_pinecone) {
+    _pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY! });
+  }
+  return _pinecone;
+}
 
 const INDEX_NAME = "documents";
 
@@ -179,9 +169,10 @@ async function readFileContent(filePath: string): Promise<string> {
 
   if (ext === ".pdf") {
     const buffer = fs.readFileSync(filePath);
-    //@ts-expect-error
-    const data = await pdf(buffer);
-    return data.text;
+    const parser = new PDFParse({ data: buffer });
+    const result = await parser.getText();
+    await parser.destroy();
+    return result.text;
   } else {
     return fs.readFileSync(filePath, "utf-8");
   }
@@ -203,41 +194,44 @@ async function uploadFile(req: Request, res: Response) {
         return res.status(400).json({ success: false, error: "File is required" });
       }
 
-    //   const filePath = req.file.path;
-    //   const fileName = req.file.originalname;
-
-     const filePath = "./test.pdf";
-  const fileName = "test.pdf";
+      const filePath = req.file.path;
+      const fileName = req.file.originalname;
 
       const content = await readFileContent(filePath);
       const chunks = chunkText(content);
 
-      const index = pinecone.index(INDEX_NAME);
+      const index = getPinecone().index(INDEX_NAME);
 
       for (let i = 0; i < chunks.length; i++) {
-        //@ts-expect-error
-        const vector = await embedText(chunks[i]);
+        const textToEmbed = chunks[i] || "";
+        const vector = await embedText(textToEmbed);
 
-        await index.upsert({
-            //@ts-expect-error
-          upsertRequest: {
-            vectors: [
-              {
-                id: randomUUID(),
-                values: vector,
-                metadata: {
-                  fileName,
-                  chunkIndex: i,
-                  text: chunks[i],
-                },
-              },
-            ],
+        await index.upsert([
+          {
+            id: randomUUID(),
+            values: vector,
+            metadata: {
+              fileName: fileName as string,
+              chunkIndex: i,
+              text: textToEmbed,
+            },
           },
-        });
+        ]);
       }
 
       // Optional: delete uploaded file after processing
       fs.unlinkSync(filePath);
+
+      // Track uploaded file
+      const filesPath = path.join(process.cwd(), "uploads", "files.json");
+      let files = [];
+      if (fs.existsSync(filesPath)) {
+        files = JSON.parse(fs.readFileSync(filesPath, "utf-8"));
+      }
+      if (!files.includes(fileName)) {
+        files.push(fileName);
+        fs.writeFileSync(filesPath, JSON.stringify(files, null, 2));
+      }
 
       return res.status(200).json({
         success: true,
@@ -246,6 +240,9 @@ async function uploadFile(req: Request, res: Response) {
       });
     } catch (err: any) {
       console.error("Error uploading file:", err);
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
       return res.status(500).json({ success: false, error: err.message });
     }
 }
@@ -282,18 +279,15 @@ const queryMessageFromFile = async (
     const queryEmbedding = await embedText(prompt);
 
     // 2️⃣ Query Pinecone with file filter
-    const index = pinecone.index(INDEX_NAME);
+    const index = getPinecone().index(INDEX_NAME);
 
     const queryResponse = await index.query({
-        //@ts-expect-error
-      queryRequest: {
         vector: queryEmbedding,
         topK,
         includeMetadata: true,
         filter: {
           fileName: { $eq: fileName },
         },
-      },
     });
 
     if (!queryResponse.matches || queryResponse.matches.length === 0) {
@@ -332,8 +326,8 @@ const queryMessageFromFile = async (
 `;
 
     // 5️⃣ Call Gemini
-    const response = await geminiClient(finalPrompt);
-    const answer = parseResult(response);
+    const aiResponse = await geminiClient(finalPrompt);
+    const answer = getText(aiResponse);
 
     // 6️⃣ Response
     const result: RAGResult = {
@@ -348,7 +342,7 @@ const queryMessageFromFile = async (
 
     return res.status(200).json({
       success: true,
-      data: result,
+      data: answer,
     });
   } catch (err: any) {
     console.error("RAG query error:", err);
@@ -484,7 +478,24 @@ const queryMessageFromFile = async (
 //   }
 // }
 
-export {ChatFinance, ChatLegal, ChatGeneral, queryMessageFromFile, uploadFile};
+async function getFiles(req: Request, res: Response) {
+    try {
+        const index = getPinecone().index(INDEX_NAME);
+        // This is a hack because Pinecone doesn't support listing unique metadata values easily.
+        // We'll just return a message or implement a better tracker if needed.
+        // For now, let's assume we maintain a simple local list.
+        const filesPath = path.join(process.cwd(), "uploads", "files.json");
+        let files = [];
+        if (fs.existsSync(filesPath)) {
+            files = JSON.parse(fs.readFileSync(filesPath, "utf-8"));
+        }
+        return res.status(200).json({ success: true, data: files });
+    } catch (err: any) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+}
+
+export {ChatFinance, ChatLegal, ChatGeneral, queryMessageFromFile, uploadFile, getFiles};
 
 // In Landing AI’s Agentic Document Extraction (Agent Document Extraction), Parse, Extract, and Split are three different stages/operations in the document understanding pipeline. They sound similar, but they solve different problems.
 
