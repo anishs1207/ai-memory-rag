@@ -46,9 +46,11 @@ const ROUTE_MAP = {
     finance: `${SERVER_URL}/api/v1/message/finance`,
     legal: `${SERVER_URL}/api/v1/message/legal`,
     pdf: `${SERVER_URL}/api/v1/message/chat-file`,
+    budget: `${SERVER_URL}/api/v1/message/budget`,
+    research: `${SERVER_URL}/api/v1/message/research`,
 } as const;
 
-type ModelType = "general" | "finance" | "legal" | "pdf";
+type ModelType = "general" | "finance" | "legal" | "pdf" | "budget" | "research";
 
 type Message = {
     id: string;
@@ -62,6 +64,8 @@ const MODEL_CONFIGS: Record<ModelType, { label: string; icon: any; color: string
     finance: { label: "Finance", icon: Hash, color: "text-green-500" },
     legal: { label: "Legal", icon: FileText, color: "text-purple-500" },
     pdf: { label: "PDF Chat", icon: FileText, color: "text-orange-500" },
+    budget: { label: "Budget", icon: Hash, color: "text-pink-500" }, // Reusing Hash or Import icons if needed
+    research: { label: "Research", icon: FileText, color: "text-indigo-500" },
 };
 
 export default function AgentChat() {
