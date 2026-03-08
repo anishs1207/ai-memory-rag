@@ -27,9 +27,11 @@ app.use("/uploads", express.static("uploads"));
 // ── Routes ─────────────────────────────────────────────────
 import messageRouter from "./routes/message.routes.js";
 import panelRouter from "./routes/panel.routes.js";
+import memoryRouter from "./routes/memoryFramework.routes.js";
 
 app.use("/api/v1/message", messageRouter);
 app.use("/api/v1/panel", panelRouter);
+app.use("/api/v1/memory", memoryRouter);
 
 // ───────────────────────────────────────────────────────────
 
