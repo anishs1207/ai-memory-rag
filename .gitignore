@@ -5,12 +5,9 @@ node_modules
 .pnp
 .pnp.js
 
-testing-playground/agent-memory/.env
-testing-playground/agent-memory/dist
-testing-playground/agent-memory/node_modules
-
 NOTES.md
 PROGRESS.md
+MEMORY.md
 
 # testing
 coverage
@@ -22,7 +19,6 @@ build
 .swc/
 uploads
 
-/resources
 
 # misc
 .DS_Store

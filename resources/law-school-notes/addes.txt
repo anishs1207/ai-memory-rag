@@ -1,0 +1,26 @@
+Law school lecture notes
+
+| Semester         | Core / Compulsory Subjects                                                                                                                                                    | Sample Electives / Optional Subjects                                   | Practical / Skill Components                           |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------ |
+| **Semester I**   | - Jurisprudence / Legal Theory / Legal Method <br> - Law of Contract I <br> - Law of Torts <br> - Criminal Law I (IPC or equivalent) <br> - Family Law I                      | —                                                                      | —                                                      |
+| **Semester II**  | - Evidence Law <br> - Family Law II (Personal Law) <br> - Criminal Law II <br> - Property Law <br> - Public International Law                                                 | —                                                                      | —                                                      |
+| **Semester III** | - Constitutional Law I <br> - Code of Civil Procedure & Limitation <br> - Company Law <br> - Optional / Elective I <br> - Optional / Elective II                              | Media Law, Private International Law, White Collar Crimes, etc.        | —                                                      |
+| **Semester IV**  | - Constitutional Law II <br> - Administrative Law <br> - Labour / Industrial Law <br> - Interpretation of Statutes & Legislative Drafting <br> - Optional / Elective III      | Gender Justice, Competition Law, Intellectual Property Rights, etc.    | —                                                      |
+| **Semester V**   | - Drafting, Pleading & Conveyancing <br> - Moot Court / Internship <br> - Industrial Law (including IDRA) <br> - Principles of Taxation Law <br> - Electives                  | Information Technology Law, Criminology, International Trade Law, etc. | Moot, internships, drafting exercises                  |
+| **Semester VI**  | - Advocacy, Professional Ethics & Accountancy <br> - Alternative Dispute Resolution (ADR) <br> - Environmental Law <br> - Jurisprudence II / Advanced Theory <br> - Electives | Insurance & Banking Law, Election Laws, Minor Acts, etc.               | Clinical legal work, arbitration simulation, legal aid |
+
+| Subject                               | Recommended Textbook(s)                                                                                       |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Jurisprudence / Legal Theory          | V. D. Mahajan, *Jurisprudence & Legal Theory* <br> N. V. Paranjape, *Studies in Jurisprudence & Legal Theory* |
+| Constitutional Law                    | P. M. Bakshi, *The Constitution of India* <br> M. P. Jain & S. N. Jain, *Principles of Administrative Law*    |
+| Law of Contract                       | Avtar Singh, *Law of Contract* <br> R. K. Bangia, *Indian Contract Act*                                       |
+| Tort Law                              | R. K. Bangia, *Law of Torts*                                                                                  |
+| Criminal Law / IPC                    | K. N. Chandrasekharan Pillai, *Criminal Law* <br> R. S. N. Pillai, *Criminal Law*                             |
+| Evidence Law                          | Avtar Singh, *Principles of the Law of Evidence*                                                              |
+| Civil Procedure / Limitation          | C. K. Takwani, *Code of Civil Procedure* <br> J. D. Jain, *Limitation Act*                                    |
+| Company Law                           | Avtar Singh, *Company Law*                                                                                    |
+| Administrative Law                    | C. K. Takwani, *Administrative Law*                                                                           |
+| Interpretation & Legislative Drafting | G. C. V. Subba Rao, *Interpretation of Statutes* <br> *Legislative Drafting* textbooks                        |
+| Drafting, Pleading & Conveyancing     | Dr. N. S. Gopalswami’s works, or regionally recommended works                                                 |
+| Professional Ethics / Accountancy     | S. R. Myneni, *Professional Ethics & Accountancy for Lawyers*                                                 |
+| ADR / Arbitration                     | Dr. K. P. Rao, *Alternative Dispute Resolution*                                                               |
