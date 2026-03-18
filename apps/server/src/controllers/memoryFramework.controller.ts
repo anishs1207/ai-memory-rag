@@ -42,9 +42,13 @@ import {
 import { geminiClient, getText } from "../utils/index.js";
 import type { MemoryRecallRequest } from "../types/memory.types.js";
 
-// Helper: safely extract string route param
-const p = (val: string | string[] | undefined): string =>
-  Array.isArray(val) ? (val[0] ?? "") : (val ?? "");
+// Helper: safely extract string route param or query
+const p = (val: any): string => {
+  if (val === undefined || val === null) return "";
+  if (Array.isArray(val)) return String(val[0] ?? "");
+  if (typeof val === "object") return ""; // ParsedQs or similar
+  return String(val);
+};
 
 // ─── Session Management ───────────────────────────────────────────────────────
 

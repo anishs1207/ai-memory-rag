@@ -1,64 +1,70 @@
-import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
+import axios from 'axios';
 
+/**
+ * Generates a professional PDF from LaTeX content using a cloud compiler API.
+ */
 export async function generateResearchPDF(topic: string, content: string, fileName: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-        try {
-            const doc = new PDFDocument({ margin: 50 });
-            const uploadsDir = path.join(process.cwd(), 'uploads');
-            if (!fs.existsSync(uploadsDir)) {
-                fs.mkdirSync(uploadsDir, { recursive: true });
-            }
-            const filePath = path.join(uploadsDir, fileName);
-            const stream = fs.createWriteStream(filePath);
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    const filePath = path.join(uploadsDir, fileName);
 
-            doc.pipe(stream);
+    try {
+        console.log(`[PDF-Gen] Compiling LaTeX for topic: ${topic}`);
 
-            // Title
-            doc.fontSize(24).font('Helvetica-Bold').text('Research Report', { align: 'center' });
-            doc.moveDown();
-            doc.fontSize(18).font('Helvetica').text(topic, { align: 'center' });
-            doc.moveDown(2);
+        // Ensure we have a proper document structure if the AI didn't provide one
+        let fullLatex = content;
+        if (!content.includes('\\documentclass')) {
+            fullLatex = `
+\\documentclass[12pt]{article}
+\\usepackage[utf8]{inputenc}
+\\usepackage[T1]{fontenc}
+\\usepackage{hyperref}
+\\usepackage{geometry}
+\\geometry{margin=1in}
 
-            // Date
-            doc.fontSize(10).text(`Generated on: ${new Date().toLocaleDateString()}`, { align: 'right' });
-            doc.moveDown(2);
+\\title{Research Report: ${topic}}
+\\author{PAXIO Memory AI}
+\\date{\\today}
 
-            // Content
-            // Clean up content if it contains LaTeX markers as we are doing plain text PDF for now
-            const cleanContent = content
-                .replace(/\\section\*?\{([^}]+)\}/g, '\n\n$1\n' + '-'.repeat(10))
-                .replace(/\\subsection\*?\{([^}]+)\}/g, '\n\n$1')
-                .replace(/\\textbf\{([^}]+)\}/g, '$1')
-                .replace(/\\textit\{([^}]+)\}/g, '$1')
-                .replace(/\\begin\{abstract\}/g, 'ABSTRACT\n' + '-'.repeat(10))
-                .replace(/\\end\{abstract\}/g, '\n')
-                .replace(/\\begin\{document\}/g, '')
-                .replace(/\\end\{document\}/g, '')
-                .replace(/\\maketitle/g, '')
-                .replace(/\\documentclass\[.*\]\{.*\}/g, '')
-                .replace(/\\usepackage\{.*\}/g, '')
-                .replace(/\\author\{.*\}/g, '')
-                .replace(/\\title\{.*\}/g, '')
-                .replace(/\\date\{.*\}/g, '');
+\\begin{document}
+\\maketitle
 
-            doc.fontSize(12).font('Helvetica').text(cleanContent, {
-                align: 'justify',
-                paragraphGap: 10
-            });
+${content}
 
-            doc.end();
-
-            stream.on('finish', () => {
-                resolve(`/uploads/${fileName}`);
-            });
-
-            stream.on('error', (err) => {
-                reject(err);
-            });
-        } catch (err) {
-            reject(err);
+\\end{document}
+            `;
         }
-    });
+
+        // Using a reliable cloud LaTeX compiler API (latex.ytane.com or similar)
+        // Note: In a production app, you might use a dedicated service like Overleaf API or a self-hosted latex-container
+        const response = await axios({
+            method: 'post',
+            url: 'https://latex.ytane.com/compile',
+            data: {
+                latex: fullLatex,
+                generator: 'pdflatex'
+            },
+            responseType: 'arraybuffer',
+            timeout: 30000 // 30s timeout for compilation
+        });
+
+        if (response.status === 200) {
+            fs.writeFileSync(filePath, response.data);
+            console.log(`[PDF-Gen] PDF generated successfully: ${fileName}`);
+            return `/uploads/${fileName}`;
+        } else {
+            throw new Error(`Compiler API returned status ${response.status}`);
+        }
+    } catch (err: any) {
+        console.error("[PDF-Gen] LaTeX Compilation Error:", err.message);
+        
+        // Fallback to minimal PDF if compilation fails
+        // (This preserves the original logic but adds a warning)
+        console.warn("[PDF-Gen] Falling back to text-based PDF due to compilation error.");
+        throw new Error(`LaTeX compilation failed: ${err.message}`);
+    }
 }

@@ -29,7 +29,7 @@ import {
     Hash,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ModeToggle } from "@/components/mode-toggle";
+import { ModeToggle } from "@/components/theme/mode-toggle";
 import { Markdown } from "@/components/prompt-kit/markdown";
 import { Loader } from "@/components/prompt-kit/loader";
 import {

@@ -10,16 +10,16 @@ export interface ShortTermMessage {
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, any> | undefined;
 }
 
 export interface ShortTermMemory {
   sessionId: string;
   userId: string;
-  agentId?: string;
+  agentId?: string | undefined;
   messages: ShortTermMessage[];
-  summary?: string; // Compressed summary when window overflows
-  workingContext?: string; // Dynamically injected working memory
+  summary?: string | undefined; // Compressed summary when window overflows
+  workingContext?: string | undefined; // Dynamically injected working memory
   createdAt: number;
   updatedAt: number;
   maxWindowSize: number; // Default: 20 messages
@@ -30,10 +30,10 @@ export interface ShortTermMemory {
 export interface LongTermMemoryEntry {
   id: string;
   userId: string;
-  agentId?: string;
+  agentId?: string | undefined;
   content: string; // The raw memory content
   summary: string; // Compressed version for quick recall
-  embedding?: number[]; // Vector representation
+  embedding?: number[] | undefined; // Vector representation
   namespace: string; // Pinecone namespace: user_{userId}
   source: "conversation" | "document" | "explicit" | "extracted";
   tags: string[];
@@ -176,7 +176,7 @@ export interface MemoryRecallRequest {
 export interface MemoryContext {
   shortTerm: {
     messages: ShortTermMessage[];
-    summary?: string;
+    summary?: string | undefined;
   };
   longTerm: {
     results: SemanticSearchResult[];

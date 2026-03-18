@@ -79,7 +79,7 @@ export function createSession(
   const session: ShortTermMemory = {
     sessionId: randomUUID(),
     userId,
-    agentId,
+    ...(agentId !== undefined ? { agentId } : {}),
     messages: systemPrompt
       ? [
           {
@@ -118,7 +118,7 @@ export async function addMessage(
     role,
     content,
     timestamp: Date.now(),
-    metadata,
+    ...(metadata !== undefined ? { metadata } : {}),
   };
 
   session.messages.push(msg);
@@ -178,7 +178,7 @@ export function getShortTermContext(
 
   return {
     messages: recentMessages,
-    summary: session.summary,
+    ...(session.summary !== undefined ? { summary: session.summary } : {}),
     contextString: lines.join("\n"),
   };
 }

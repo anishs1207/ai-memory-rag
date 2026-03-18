@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Bot, PlusIcon, Search, Trash } from "lucide-react";
-import { ModeToggle } from "../mode-toggle";
+import { ModeToggle } from "../theme/mode-toggle";
 import { NavUser } from "./NavUser";
 
 type ModelType = "general" | "finance" | "legal" | "pdf" | "budget" | "research";

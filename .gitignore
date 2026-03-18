@@ -5,9 +5,7 @@ node_modules
 .pnp
 .pnp.js
 
-NOTES.md
-PROGRESS.md
-MEMORY.md
+/docs
 
 # testing
 coverage
@@ -18,7 +16,7 @@ out/
 build
 .swc/
 uploads
-
+/updates
 
 # misc
 .DS_Store

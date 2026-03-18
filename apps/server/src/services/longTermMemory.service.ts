@@ -80,7 +80,7 @@ export async function storeLongTermMemory(params: {
   const entry: LongTermMemoryEntry = {
     id,
     userId,
-    agentId,
+    ...(agentId !== undefined ? { agentId } : {}),
     content,
     summary: summary || content.slice(0, 200),
     embedding,
@@ -177,7 +177,7 @@ export async function searchLongTermMemory(params: {
         const entry: Omit<LongTermMemoryEntry, "embedding"> = {
           id: m.id,
           userId: meta.userId,
-          agentId: meta.agentId || undefined,
+          ...(meta.agentId && meta.agentId !== "" ? { agentId: meta.agentId } : {}),
           content: meta.content,
           summary: meta.summary,
           namespace,

@@ -95,7 +95,7 @@ export async function recallMemory(
   return {
     shortTerm: {
       messages: shortTermData.messages || [],
-      summary: shortTermSummary,
+      ...(shortTermSummary !== undefined ? { summary: shortTermSummary } : {}),
     },
     longTerm: {
       results: longTermResults,
