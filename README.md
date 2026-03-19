@@ -2,6 +2,10 @@
 
 > A sophisticated three-tier memory system for AI agents, integrating short-term conversation context, long-term semantic retrieval, and a persistent knowledge graph.
 
+![alt text](image.png)
+
+![alt text](image-1.png)
+
 ## 🏗️ Architecture Overview
 
 The Memory Framework implements a hierarchical memory structure inspired by cognitive architectures:

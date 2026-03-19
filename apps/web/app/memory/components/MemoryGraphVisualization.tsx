@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Network, Search, PlusCircle, Hexagon } from "lucide-react";
 
 interface Node {
     id: string;
@@ -309,57 +314,70 @@ export default function MemoryGraphVisualization({ userId, apiBase, graphData, o
     const allTypes = Array.from(new Set(nodes.map((n) => n.type)));
 
     return (
-        <div>
-            <div className="section-title">Knowledge Graph</div>
-            <div className="section-subtitle">
-                Interactive visualization of your memory knowledge graph — entities, relationships, and their temporal confidence.
+        <div className="p-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full">
+            <div className="space-y-1">
+                <h2 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
+                    <Network className="h-6 w-6 text-primary" />
+                    Knowledge Graph
+                </h2>
+                <p className="text-muted-foreground text-sm">
+                    Interactive visualization of your memory knowledge graph — entities, relationships, and their temporal confidence.
+                </p>
             </div>
 
             {/* Controls */}
-            <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-                <input
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search entities…"
-                    className="search-input"
-                    style={{ maxWidth: 220 }}
-                />
-                <div className="graph-controls" style={{ margin: 0 }}>
-                    <button
-                        className={`graph-ctrl-btn ${filterType === "all" ? "active" : ""}`}
+            <Card className="p-4 flex flex-wrap gap-4 items-center bg-card/50 shadow-sm border">
+                <div className="relative w-full max-w-xs">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search entities…"
+                        className="pl-9 bg-background"
+                    />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <Badge
+                        variant={filterType === "all" ? "default" : "secondary"}
+                        className="cursor-pointer font-medium hover:bg-primary/80 transition-colors"
                         onClick={() => setFilterType("all")}
                     >
-                        All
-                    </button>
+                        All Types
+                    </Badge>
                     {allTypes.map((t) => (
-                        <button
+                        <Badge
                             key={t}
-                            className={`graph-ctrl-btn ${filterType === t ? "active" : ""}`}
+                            variant={filterType === t ? "default" : "outline"}
+                            className="cursor-pointer font-medium hover:bg-muted transition-colors"
                             onClick={() => setFilterType(t)}
-                            style={{ borderLeft: `2px solid ${getColor(t)}` }}
+                            style={{ 
+                                borderColor: filterType !== t ? getColor(t) : undefined,
+                                backgroundColor: filterType === t ? getColor(t) : undefined,
+                                color: filterType === t ? "#fff" : undefined
+                            }}
                         >
                             {t}
-                        </button>
+                        </Badge>
                     ))}
                 </div>
-            </div>
+            </Card>
 
             {/* Canvas */}
-            <div className="graph-container">
+            <div className="flex-1 min-h-[500px] border border-muted bg-[#080b14] rounded-xl overflow-hidden relative shadow-inner">
                 {nodes.length === 0 ? (
-                    <div className="empty-state" style={{ height: "100%" }}>
-                        <div className="empty-icon">⬡</div>
-                        <div className="empty-title">Knowledge graph is empty</div>
-                        <div className="empty-desc">
-                            Start a memory chat — the AI will automatically extract entities and relationships into this graph
-                        </div>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground p-10 text-center">
+                        <Hexagon className="h-16 w-16 mb-4 opacity-20" />
+                        <p className="font-semibold text-foreground text-lg">Knowledge graph is empty</p>
+                        <p className="text-sm mt-2 max-w-sm">
+                            Start a memory chat — the AI will automatically extract entities and relationships into this graph.
+                        </p>
                     </div>
                 ) : (
                     <canvas
                         ref={canvasRef}
                         width={1200}
                         height={560}
-                        style={{ width: "100%", height: "100%", display: "block" }}
+                        className="w-full h-full block cursor-crosshair"
                         onClick={handleCanvasClick}
                         onMouseMove={handleCanvasMouseMove}
                     />
@@ -367,98 +385,86 @@ export default function MemoryGraphVisualization({ userId, apiBase, graphData, o
 
                 {/* Node info overlay */}
                 {selected && (
-                    <div
-                        style={{
-                            position: "absolute",
-                            bottom: 16,
-                            left: 16,
-                            background: "rgba(8, 11, 20, 0.92)",
-                            border: "1px solid rgba(168,85,247,0.3)",
-                            borderRadius: 12,
-                            padding: "16px 20px",
-                            backdropFilter: "blur(20px)",
-                            minWidth: 240,
-                            maxWidth: 320,
-                        }}
-                    >
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                    <div className="absolute bottom-6 left-6 bg-background/95 border border-primary/30 rounded-xl p-5 backdrop-blur-md shadow-lg min-w-[280px] max-w-[340px] animate-in slide-in-from-bottom-2 fade-in duration-200">
+                        <div className="flex items-center gap-3 mb-3">
                             <div
+                                className="w-3 h-3 rounded-full"
                                 style={{
-                                    width: 10,
-                                    height: 10,
-                                    borderRadius: "50%",
-                                    background: getColor(selected.type),
-                                    boxShadow: `0 0 8px ${getColor(selected.type)}`,
+                                    backgroundColor: getColor(selected.type),
+                                    boxShadow: `0 0 10px ${getColor(selected.type)}`,
                                 }}
                             />
-                            <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.9)" }}>{selected.label}</div>
+                            <div className="text-base font-semibold text-foreground truncate">{selected.label}</div>
                         </div>
-                        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginBottom: 8, fontFamily: "JetBrains Mono, monospace" }}>
-                            {selected.type} · {selected.occurrences} occurrences · {Math.round(selected.confidence * 100)}% confidence
+                        <div className="text-xs text-muted-foreground mb-4 font-mono leading-relaxed bg-muted/40 p-2 rounded-md">
+                            <span className="font-bold">{selected.type}</span> <br/>
+                            {selected.occurrences} occurrences <br/>
+                            {Math.round(selected.confidence * 100)}% confidence
                         </div>
                         {Object.keys(selected.properties).length > 0 && (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                            <div className="flex flex-col gap-1.5 mt-2 overflow-y-auto max-h-[150px] pr-2 custom-scrollbar">
                                 {Object.entries(selected.properties).map(([k, v]) => (
-                                    <div key={k} style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
-                                        <span style={{ color: "rgba(168,85,247,0.7)" }}>{k}:</span> {String(v)}
+                                    <div key={k} className="text-[11px] text-muted-foreground bg-muted/20 p-1.5 rounded border border-muted-foreground/10">
+                                        <span className="text-primary/80 font-semibold mr-1">{k}:</span>
+                                        <span className="break-words">{String(v)}</span>
                                     </div>
                                 ))}
                             </div>
                         )}
                     </div>
                 )}
-            </div>
-
-            {/* Legend */}
-            <div className="graph-legend">
-                {Object.entries(NODE_COLORS).map(([type, color]) => (
-                    <div key={type} className="legend-item">
-                        <div className="legend-dot" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
-                        {type}
-                    </div>
-                ))}
+                
+                {/* Legend */}
+                <div className="absolute top-6 right-6 flex flex-col gap-2 bg-background/80 backdrop-blur-sm p-4 rounded-xl border border-muted shadow-sm hidden md:flex">
+                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Index</span>
+                    {Object.entries(NODE_COLORS).slice(0, 8).map(([type, color]) => (
+                        <div key={type} className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium">
+                            <div className="w-2 h-2 rounded-full" style={{ background: color, boxShadow: `0 0 4px ${color}` }} />
+                            {type}
+                        </div>
+                    ))}
+                    <div className="text-[9px] text-muted-foreground/50 mt-1 italic">+ more</div>
+                </div>
             </div>
 
             {/* Add custom node */}
-            <div className="mem-card" style={{ marginTop: 20 }}>
-                <div className="mem-card-title" style={{ marginBottom: 16 }}>
-                    <div className="mem-card-icon icon-purple">＋</div>
-                    Add Custom Entity
-                </div>
-                <div style={{ display: "flex", gap: 10 }}>
-                    <input
-                        value={addNode.label}
-                        onChange={(e) => setAddNode((p) => ({ ...p, label: e.target.value }))}
-                        placeholder="Entity label (e.g. TypeScript, John, Finance)"
-                        className="search-input"
-                        style={{ flex: 1 }}
-                        onKeyDown={(e) => e.key === "Enter" && handleAddNode()}
-                    />
-                    <select
-                        value={addNode.type}
-                        onChange={(e) => setAddNode((p) => ({ ...p, type: e.target.value }))}
-                        style={{
-                            background: "rgba(255,255,255,0.05)",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            borderRadius: 10,
-                            padding: "12px 14px",
-                            color: "rgba(255,255,255,0.7)",
-                            fontSize: 13,
-                            outline: "none",
-                            cursor: "pointer",
-                        }}
-                    >
-                        {Object.keys(NODE_COLORS).map((t) => (
-                            <option key={t} value={t} style={{ background: "#0f1320" }}>
-                                {t}
-                            </option>
-                        ))}
-                    </select>
-                    <button className="search-btn" onClick={handleAddNode} disabled={isAdding}>
-                        {isAdding ? "Adding…" : "Add Node"}
-                    </button>
-                </div>
-            </div>
+            <Card className="shadow-sm border-t-4 border-t-primary/50">
+                <CardHeader className="bg-muted/10 pb-4 border-b">
+                    <CardTitle className="text-base flex items-center gap-2">
+                        <PlusCircle className="h-4 w-4 text-purple-500" />
+                        Add Custom Entity
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4">
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <Input
+                            value={addNode.label}
+                            onChange={(e) => setAddNode((p) => ({ ...p, label: e.target.value }))}
+                            placeholder="Entity label (e.g. TypeScript, John, Finance)"
+                            className="flex-1"
+                            onKeyDown={(e) => e.key === "Enter" && handleAddNode()}
+                        />
+                        <select
+                            value={addNode.type}
+                            onChange={(e) => setAddNode((p) => ({ ...p, type: e.target.value }))}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-[180px]"
+                        >
+                            {Object.keys(NODE_COLORS).map((t) => (
+                                <option key={t} value={t} className="bg-background">
+                                    {t}
+                                </option>
+                            ))}
+                        </select>
+                        <Button 
+                            onClick={handleAddNode} 
+                            disabled={isAdding || !addNode.label.trim()}
+                            className="w-full sm:w-auto"
+                        >
+                            {isAdding ? "Adding…" : "Add Node"}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }

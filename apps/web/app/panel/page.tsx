@@ -66,6 +66,8 @@ export default function Page() {
     const [actionVotes, setActionVotes] = useState<any[]>([]);
     const [finalAction, setFinalAction] = useState<any>(null);
     const [outcome, setOutcome] = useState<any>(null);
+    const [news, setNews] = useState<any[]>([]);
+    const [enrichedVotes, setEnrichedVotes] = useState<any[]>([]);
 
     const [approval, setApproval] = useState(75);
     const [logs, setLogs] = useState<{ msg: string; type: "info" | "success" | "warning" | "error"; details?: string }[]>(
@@ -106,6 +108,7 @@ export default function Page() {
                 enrichedVotes: any[];
             }>(`${API_BASE}/conduct-election`, { agents: personas });
             setTopFive(resp.data.topLeadersWithDetails);
+            setEnrichedVotes(resp.data.enrichedVotes || []);
             addLog("Leadership Selection Complete", "success", `Top 5 candidates have been identified.`);
             setPhase("council");
         } catch (err: any) {
@@ -145,6 +148,18 @@ export default function Page() {
             addLog(`Response Implemented`, "success", `Strategy enacted: ${finalAction.label}.`);
             setApproval((prev) => Math.min(100, Math.max(0, prev + outcome.approvalChange)));
             setPhase("crisis");
+
+            // Fetch News Reactions without blocking the main render
+            addLog("Media Pulse", "info", "Monitoring global networks for reactions...");
+            axios.post(`${API_BASE}/generate-news`, { issue, finalAction, outcome })
+                .then(newsResp => {
+                    setNews(newsResp.data.news);
+                    addLog("News Received", "success", "Media reports aggregated.");
+                })
+                .catch(err => {
+                    addLog("Media Pulse Error", "warning", "Failed to aggregate media reports.");
+                });
+
         } catch (err: any) {
             setError(err.message || "Simulation failed");
             addLog("Simulation Error", "error", "Failed to process environmental response.");
@@ -162,6 +177,8 @@ export default function Page() {
         setApproval(75);
         setCrisis(null);
         setError(null);
+        setNews([]);
+        setEnrichedVotes([]);
     }
 
     return (
@@ -280,6 +297,9 @@ export default function Page() {
                                     <TabsList className="mb-4">
                                         <TabsTrigger value="grid">Grid Overview</TabsTrigger>
                                         <TabsTrigger value="list">Detailed Logs</TabsTrigger>
+                                        {(phase === "council" || phase === "leader" || phase === "crisis") && enrichedVotes.length > 0 && (
+                                            <TabsTrigger value="votes">Voting Analysis</TabsTrigger>
+                                        )}
                                     </TabsList>
 
                                     <TabsContent value="grid">
@@ -289,7 +309,10 @@ export default function Page() {
                                                     <CardHeader className="pb-3 border-b bg-muted/20">
                                                         <div className="flex justify-between items-start">
                                                             <div className="space-y-1">
-                                                                <CardTitle className="text-base truncate">{p.name}</CardTitle>
+                                                                <div className="flex items-center gap-2">
+                                                                    <CardTitle className="text-base truncate">{p.name}</CardTitle>
+                                                                    {leader?.id === p.id && <span className="text-xl" title="Supreme Leader">👑</span>}
+                                                                </div>
                                                                 <p className="text-[10px] font-bold text-muted-foreground uppercase">{p.ideology}</p>
                                                             </div>
                                                             <Badge variant="outline" className="text-[10px]">ID {p.id}</Badge>
@@ -343,7 +366,10 @@ export default function Page() {
                                                                 </AvatarFallback>
                                                             </Avatar>
                                                             <div className="flex-1 min-w-0">
-                                                                <p className="text-sm font-semibold">{p.name}</p>
+                                                                <div className="flex items-center gap-2">
+                                                                    <p className="text-sm font-semibold">{p.name}</p>
+                                                                    {leader?.id === p.id && <span className="text-sm" title="Supreme Leader">👑</span>}
+                                                                </div>
                                                                 <p className="text-[10px] text-muted-foreground uppercase">{p.ideology}</p>
                                                             </div>
                                                             <div className="hidden md:block w-1/3 text-xs text-muted-foreground italic truncate">
@@ -356,6 +382,37 @@ export default function Page() {
                                             </CardContent>
                                         </Card>
                                     </TabsContent>
+
+                                    {/* Additional tab for voting logic */}
+                                    {(phase === "council" || phase === "leader" || phase === "crisis") && enrichedVotes.length > 0 && (
+                                        <TabsContent value="votes">
+                                            <Card>
+                                                <CardHeader className="pb-4 border-b">
+                                                    <CardTitle className="text-lg">Internal Alliances (Vote Logs)</CardTitle>
+                                                    <CardDescription>How the agents voted during the primary selection</CardDescription>
+                                                </CardHeader>
+                                                <CardContent className="p-4">
+                                                    <div className="space-y-4">
+                                                        {enrichedVotes.map((v: any, i: number) => (
+                                                            <div key={i} className="flex items-start gap-4 p-3 bg-muted/10 border rounded-lg hover:border-primary/30 transition-all">
+                                                                <div className="min-w-[120px]">
+                                                                    <div className="text-xs font-bold text-foreground">{v.voter.name}</div>
+                                                                    <div className="text-[9px] uppercase text-muted-foreground">{v.voter.ideology}</div>
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                                                                        <span>voted for</span>
+                                                                        <span className="font-bold text-primary">{v.votedFor.name}</span>
+                                                                    </div>
+                                                                    <div className="text-xs italic">"{v.reason}"</div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        </TabsContent>
+                                    )}
                                 </Tabs>
 
                                 {/* Crisis Output */}
@@ -417,6 +474,33 @@ export default function Page() {
                                                 </div>
                                             </CardContent>
                                         </Card>
+
+                                        {news.length > 0 && (
+                                            <Card className="border-t-4 border-t-amber-500">
+                                                <CardHeader className="py-3 border-b">
+                                                    <CardTitle className="text-sm font-bold opacity-80 uppercase flex items-center gap-2">
+                                                        <Activity className="h-4 w-4" />
+                                                        Media Reactions
+                                                    </CardTitle>
+                                                </CardHeader>
+                                                <CardContent className="pt-4">
+                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                        {news.map((item: any, idx: number) => (
+                                                            <div key={idx} className="p-4 border rounded shadow-sm bg-card hover:shadow-md transition-shadow relative overflow-hidden">
+                                                                <div className={`absolute top-0 left-0 w-1 h-full ${
+                                                                    item.bias === "positive" ? "bg-green-500" :
+                                                                    item.bias === "negative" ? "bg-destructive" :
+                                                                    "bg-blue-500"
+                                                                }`} />
+                                                                <p className="text-[10px] text-muted-foreground font-bold uppercase mb-2 ml-2">{item.outlet}</p>
+                                                                <h4 className="font-bold text-sm leading-tight ml-2 mb-2">"{item.headline}"</h4>
+                                                                <p className="text-xs text-muted-foreground ml-2">{item.content}</p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        )}
                                     </div>
                                 )}
                             </div>

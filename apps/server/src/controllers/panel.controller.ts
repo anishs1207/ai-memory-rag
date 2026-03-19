@@ -304,3 +304,27 @@ Return ONLY a JSON object:
     return res.status(500).json({ success: false, error: err.message });
   }
 };
+
+export const generateNews = async (req: Request, res: Response) => {
+  try {
+    const { finalAction, outcome, issue } = req.body;
+    
+    const prompt = `
+Generate 3 dramatic news headlines from different media outlets (e.g., State Media, Rebel Underground, Corporate News) reacting to the following event:
+Issue: ${issue.issue}
+Action Taken: ${finalAction.label}
+Consequence: ${outcome.consequence}
+
+Return ONLY a JSON array of objects with keys: "outlet" (string), "headline" (string), "bias" (string, either "positive", "negative", or "neutral"), and "content" (string, a short paragraph summarising the article).
+`;
+    
+    const resp = await geminiClient(prompt);
+    const news = parseResult(resp);
+    
+    return res.status(200).json({ success: true, news });
+  } catch (err: any) {
+    console.error("generateNews error:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
