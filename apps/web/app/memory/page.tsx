@@ -116,10 +116,10 @@ export default function MemoryPage() {
                         <span className="text-muted-foreground">Active Session:</span>
                         <span>{userId}</span>
                     </div>
-                    <Button 
-                        onClick={refreshData} 
-                        variant="default" 
-                        size="sm" 
+                    <Button
+                        onClick={refreshData}
+                        variant="default"
+                        size="sm"
                         className="gap-2 shadow-sm"
                         disabled={isLoading}
                     >
@@ -166,11 +166,11 @@ export default function MemoryPage() {
                                 <p className="mt-4 text-sm font-semibold text-muted-foreground uppercase tracking-widest animate-pulse">Synchronizing Neural State</p>
                             </div>
                         )}
-                        
+
                         <TabsContent value="overview" className="flex-1 m-0">
                             <MemoryStats stats={stats} isLoading={isLoading} graphData={graphData} />
                         </TabsContent>
-                        
+
                         <TabsContent value="graph" className="flex-1 m-0">
                             <MemoryGraphVisualization
                                 userId={userId}
@@ -179,7 +179,7 @@ export default function MemoryPage() {
                                 onRefresh={refreshData}
                             />
                         </TabsContent>
-                        
+
                         <TabsContent value="chat" className="flex-1 m-0 h-full flex flex-col">
                             {sessionId ? (
                                 <MemoryChat
@@ -194,11 +194,11 @@ export default function MemoryPage() {
                                 </div>
                             )}
                         </TabsContent>
-                        
+
                         <TabsContent value="long-term" className="flex-1 m-0">
                             <LongTermMemorySearch userId={userId} apiBase={API_BASE} />
                         </TabsContent>
-                        
+
                         <TabsContent value="sessions" className="flex-1 m-0">
                             <ShortTermMemoryView userId={userId} sessionId={sessionId} apiBase={API_BASE} />
                         </TabsContent>
