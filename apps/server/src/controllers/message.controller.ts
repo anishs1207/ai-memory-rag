@@ -28,7 +28,7 @@ const ChatLegal = async(req: Request, res: Response) => {
         })
     }
 
-    const embeddingContexts: EmbeddingContext[] = await runRAG(prompt, "./legal-vector-db");
+    const embeddingContexts: EmbeddingContext[] = await runRAG(prompt, "./vector-db/legal-vector-db");
 
     console.log("context:", embeddingContexts);
 
@@ -72,7 +72,7 @@ const ChatFinance = async(req: Request, res: Response) => {
             })
         }
 
-        const embeddingContexts: EmbeddingContext[] = await runRAG(prompt, "./finance-vector-db");
+        const embeddingContexts: EmbeddingContext[] = await runRAG(prompt, "./vector-db/finance-vector-db");
 
         console.log("context:", embeddingContexts);
 
