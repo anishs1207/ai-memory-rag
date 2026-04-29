@@ -2,8 +2,6 @@ import { Hono } from 'hono'
 
 const app = new Hono()
 
-// https://anishsab.workers.dev.
-
 app.get('/', (c) => {
   return c.text('Hello Hono!')
 })
