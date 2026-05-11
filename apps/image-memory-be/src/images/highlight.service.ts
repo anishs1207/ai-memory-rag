@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { VlmService } from './vlm.service';
 import { ImageMemoryStore } from './image-memory.store';
-import { ImageRecord, PersonRecord } from './types/image-memory.types';
+// No imports from types needed if not used
 
 export interface Highlight {
   id: string;

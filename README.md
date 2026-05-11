@@ -2,9 +2,15 @@
 
 > A sophisticated three-tier memory system for AI agents, integrating short-term conversation context, long-term semantic retrieval, and a persistent knowledge graph.
 
-![alt text](images/image.png)
+![alt text](assets/image-3.png)
 
-![alt text](images/image-1.png)
+![alt text](assets/image-4.png)
+
+![alt text](assets/image.png)
+
+![alt text](assets/image-1.png)
+
+![alt text](assets/image-2.png)
 
 ## 🏗️ Architecture Overview
 

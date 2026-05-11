@@ -37,7 +37,7 @@ export class JournalService {
       )
       .join('\n');
 
-    const systemContext = `You are a warm, reflective personal biographer. Write a "Daily Journal" entry for the user based on their visual memories of the day.
+    const prompt = `You are a warm, reflective personal biographer. Write a "Daily Journal" entry for the user based on their visual memories of the day.
     The tone should be empathetic and observational.
     
     METADATA:
@@ -50,7 +50,7 @@ export class JournalService {
     try {
       const summary = await this.vlm.queryContext(
         'Journal Mode',
-        `Write a title (max 5 words) and a soulful summary (3-4 sentences) for this day. 
+        `${prompt}\n\nWrite a title (max 5 words) and a soulful summary (3-4 sentences) for this day. 
       Format: 
       Title: [Your Title]
       Summary: [Your Summary]`,

@@ -1,4 +1,3 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { vi } from 'vitest';
 import { PersonService } from './person.service';
 import { VectorService } from './vector.service';
@@ -7,17 +6,17 @@ import { DetectedPerson, PersonRecord } from './types/image-memory.types';
 
 describe('PersonService', () => {
   let service: PersonService;
-  let vectorService: any;
-  let vlmService: any;
+  let vectorService: VectorService;
+  let vlmService: VlmService;
 
   beforeEach(() => {
     vectorService = {
       generateEmbedding: vi.fn().mockResolvedValue(new Array(384).fill(0.1)),
       cosineSimilarity: vi.fn().mockReturnValue(0.8),
-    };
+    } as unknown as VectorService;
     vlmService = {
       queryContext: vi.fn().mockResolvedValue('Mocked biography'),
-    };
+    } as unknown as VlmService;
     service = new PersonService(vectorService, vlmService);
   });
 

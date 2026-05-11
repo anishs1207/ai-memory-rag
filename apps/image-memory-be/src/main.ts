@@ -38,4 +38,6 @@ async function bootstrap() {
     POST /backend/query         — query memory in natural language
     `);
 }
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('Failed to start application:', err);
+});

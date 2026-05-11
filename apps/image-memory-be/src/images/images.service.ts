@@ -17,8 +17,8 @@ import { PredictionService } from './prediction.service';
 import { HighlightService, Highlight } from './highlight.service';
 import { ChatMessage } from './dto/chat-memory.dto';
 
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
+// import { InjectQueue } from '@nestjs/bullmq';
+// import { Queue } from 'bullmq';
 
 @Injectable()
 export class ImagesService {
@@ -33,7 +33,7 @@ export class ImagesService {
     private readonly journalService: JournalService,
     private readonly predictionService: PredictionService,
     private readonly highlightService: HighlightService,
-    @InjectQueue('image-processing') private readonly imageQueue: Queue,
+    // @InjectQueue('image-processing') private readonly imageQueue: Queue,
   ) {}
 
   /**
@@ -42,38 +42,35 @@ export class ImagesService {
    */
   async ingestImage(file: Express.Multer.File) {
     try {
-      await this.imageQueue.add(
-        'analyze',
-        {
-          filePath: file.path,
-          filename: file.originalname,
-        },
-        {
-          attempts: 3,
-          backoff: {
-            type: 'exponential',
-            delay: 5000,
-          },
-        },
-      );
+      // await this.imageQueue.add(
+      //   'analyze',
+      //   {
+      //     filePath: file.path,
+      //     filename: file.originalname,
+      //   },
+      //   {
+      //     attempts: 3,
+      //     backoff: {
+      //       type: 'exponential',
+      //       delay: 5000,
+      //     },
+      //   },
+      // );
+
+      // Fallback: process immediately if queue is dead
+      void this.pipeline.run(file.path, file.originalname);
 
       return {
-        message: 'Image queued for processing',
-        filename: file.originalname,
-        status: 'queued',
-      };
-    } catch (err) {
-      this.logger.error(
-        'Redis connection failed, processing image synchronously as fallback',
-        err,
-      );
-      // Fallback: process immediately if queue is dead
-      this.pipeline.run(file.path, file.originalname);
-      return {
-        message:
-          'Processing image synchronously (Background queue unavailable)',
+        message: 'Image processing started (Synchronous)',
         filename: file.originalname,
         status: 'processing',
+      };
+    } catch (err) {
+      this.logger.error('Processing image failed', err);
+      return {
+        message: 'Error processing image',
+        filename: file.originalname,
+        status: 'error',
       };
     }
   }
@@ -409,10 +406,10 @@ export class ImagesService {
     for (const detected of analysis.detectedPeople) {
       const embedding = await this.vector.generateEmbedding(detected.embedText);
 
-      let bestMatch = null;
+      let bestMatch: { person: PersonRecord; score: number } | null = null;
       let highestScore = 0;
 
-      for (const [pId, record] of Object.entries(peopleStore)) {
+      for (const record of Object.values(peopleStore)) {
         if (!record.embedding) continue;
         const score = this.vector.cosineSimilarity(embedding, record.embedding);
         if (score > highestScore) {

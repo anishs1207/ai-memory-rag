@@ -12,7 +12,8 @@ export class ImageProcessor extends WorkerHost {
   }
 
   async process(job: Job<any, any, string>): Promise<any> {
-    const { filePath, filename } = job.data;
+    const filePath = job.data.filePath as string;
+    const filename = job.data.filename as string;
     this.logger.log(`Processing job ${job.id} for file: ${filename}`);
 
     try {

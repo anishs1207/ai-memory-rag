@@ -104,7 +104,7 @@ export class UserService {
     };
   }
 
-  async logoutUser(req: any) {
+  async logoutUser() {
     return {
       success: true,
       message: 'User logged out successfully',

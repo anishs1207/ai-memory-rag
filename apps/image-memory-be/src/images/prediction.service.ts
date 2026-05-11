@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ImageMemoryStore } from './image-memory.store';
-import { ImageRecord } from './types/image-memory.types';
 
 export interface LocationPrediction {
   locationContext: string;

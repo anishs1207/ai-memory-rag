@@ -23,7 +23,7 @@ export class VlmService {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
     this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
   }
 
   /**
@@ -90,7 +90,7 @@ Guidelines:
       },
     ]);
 
-    const text = result.response.text().trim();
+    const text = (result.response.text() as string).trim();
     this.logger.debug(
       `Raw VLM Response for ${path.basename(imagePath)}: ${text}`,
     );
@@ -199,7 +199,7 @@ Answer the question based on the memory context above. Be specific and reference
         prompt,
         { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
       ]);
-      const text = result.response.text().trim();
+      const text = (result.response.text() as string).trim();
       const clean = text.replace(/^```json\s*/i, '').replace(/```\s*$/, '');
       return JSON.parse(clean);
     } catch (err) {

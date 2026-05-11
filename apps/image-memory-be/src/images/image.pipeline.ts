@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { VlmService } from './vlm.service';
 import { PersonService } from './person.service';
 import { ImageMemoryStore } from './image-memory.store';
-import { ImageRecord, DetectedPerson } from './types/image-memory.types';
+import { ImageRecord } from './types/image-memory.types';
 import * as path from 'path';
 import * as process from 'process';
 
@@ -137,7 +137,7 @@ export class ImagePipeline {
     this.logger.log(`[Pipeline] Stage 3: Relationship extraction`);
     const existingRels = this.store.getAllRelationships();
     const updatedRels = this.personService.resolveRelationships(
-      analysis.relationships as any,
+      analysis.relationships as unknown as any[],
       resolvedPersonIds,
       existingRels,
       timestamp,
@@ -200,7 +200,7 @@ export class ImagePipeline {
     this.logger.log(`[Pipeline] Stage 5: Re-clustering events`);
     const allImages = this.store.getAllImages();
     const clusters = this.eventService.clusterEvents(allImages);
-    this.store.setEvents(clusters);
+    this.store.setEvents(clusters as any[]);
 
     // predictive relationships
     const currentRels = this.store.getAllRelationships();

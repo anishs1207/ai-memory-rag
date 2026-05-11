@@ -143,7 +143,9 @@ export class ImageMemoryStore {
       if (fs.existsSync(TEMP_PATH)) {
         try {
           fs.unlinkSync(TEMP_PATH);
-        } catch (e) {}
+        } catch {
+          // ignore
+        }
       }
       this.logger.error(
         `[Store] CRITICAL: Failed to flush store to disk: ${err}`,

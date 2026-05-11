@@ -158,7 +158,10 @@ export class PersonService {
 
         // Boost confidence based on repeated sightings
         // Formula: 1 - (1-baseConfidence) * (0.8^evidenceCount)
-        const baseConf = Math.max(existing.confidence, rel.confidence || 0.5);
+        const baseConf = Math.max(
+          existing.confidence,
+          (rel.confidence as number) || 0.5,
+        );
         existing.confidence =
           1 - (1 - baseConf) * Math.pow(0.85, existing.evidenceCount - 1);
 
@@ -312,7 +315,6 @@ export class PersonService {
    */
   async recalibrateVault(
     allPeople: Record<string, PersonRecord>,
-    allImages: ImageRecord[],
   ): Promise<Record<string, PersonRecord>> {
     this.logger.log(
       `[Pipeline] Initiating global identity recalibration for ${Object.keys(allPeople).length} entities`,

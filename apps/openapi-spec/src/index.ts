@@ -92,6 +92,6 @@ app.doc('/doc', {
   info: { version: '1.0.0', title: 'Memory-AI API Core' },
 })
 
-serve({ fetch: app.fetch, port: 8787 })
-console.log('Running on http://localhost:8787')
+serve({ fetch: app.fetch, port: 8788 })
+console.log('Running on http://localhost:8788')
 export default app

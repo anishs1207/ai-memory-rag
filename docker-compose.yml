@@ -1,0 +1,84 @@
+services:
+  # Database for the system
+  db:
+    image: postgres:15
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: agentic_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - agent-network
+
+  # Redis for image processing queues
+  redis:
+    image: redis:7
+    container_name: redis_cache
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - agent-network
+
+  # Image Memory Backend
+  image-memory-backend:
+    image: image-memory-backend
+    build:
+      context: ./image-memory/backend
+      dockerfile: Dockerfile
+    container_name: image-memory-backend
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: postgresql://user:password@db:5432/agentic_db?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      PORT: 3001
+    depends_on:
+      - db
+      - redis
+    networks:
+      - agent-network
+
+  # Image Memory Frontend
+  image-memory-frontend:
+    image: image-memory-frontend
+    build:
+      context: ./image-memory/frontend
+      dockerfile: Dockerfile
+    container_name: image-memory-frontend
+    ports:
+      - "3005:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+    depends_on:
+      - image-memory-backend
+    networks:
+      - agent-network
+
+  # Image Memory Documentation
+  image-memory-docs:
+    image: image-memory-docs
+    build:
+      context: ./image-memory/image-docs
+      dockerfile: Dockerfile
+    container_name: image-memory-docs
+    ports:
+      - "8080:80"
+    depends_on:
+      - image-memory-backend
+    networks:
+      - agent-network
+
+networks:
+  agent-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
