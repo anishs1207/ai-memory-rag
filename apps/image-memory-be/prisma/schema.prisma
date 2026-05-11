@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Image {
+  id             String        @id @default(uuid())
+  filename       String
+  storagePath    String
+  uploadedAt     DateTime      @default(now())
+  scene          String
+  rawDescription String
+  tags           String[]
+  ocrText        String?       @default("")
+  detectedPeople ImagePerson[]
+}
+
+model Person {
+  id                   String         @id @default(uuid())
+  name                 String?
+  age                  String?
+  gender               String?
+  canonicalDescriptors String[]
+  embedText            String
+  firstSeen            DateTime       @default(now())
+  lastSeen             DateTime       @default(now())
+  images               ImagePerson[]
+  relationships1       Relationship[] @relation("Person1")
+  relationships2       Relationship[] @relation("Person2")
+}
+
+model ImagePerson {
+  imageId  String
+  personId String
+  image    Image  @relation(fields: [imageId], references: [id])
+  person   Person @relation(fields: [personId], references: [id])
+
+  @@id([imageId, personId])
+}
+
+model Relationship {
+  id         String @id @default(uuid())
+  person1Id  String
+  person2Id  String
+  relation   String
+  confidence Float
+  evidence   String
+  person1    Person @relation("Person1", fields: [person1Id], references: [id])
+  person2    Person @relation("Person2", fields: [person2Id], references: [id])
+}
+
+model User {
+  id       String @id @default(uuid())
+  email    String @unique
+  name     String
+  password String
+}
