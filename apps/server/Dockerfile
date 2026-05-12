@@ -1,35 +1,30 @@
-FROM node:20-bullseye AS base
+# Build stage
+FROM node:20-bullseye AS builder
 
 WORKDIR /usr/src/app
 
-COPY package.*json ./
+COPY package*.json ./
+COPY apps/server/package.json ./apps/server/
+COPY packages/ ./packages/
 
-# development stage
-FROM base AS development
-
-RUN --mount=type=cache,target=/usr/src/app/.npm \
-    npm set cache /usr/src/app/.npm && \
-    npm install
+RUN npm install
 
 COPY . .
+RUN npm run build --workspace=server
 
-CMD ["npm", "run", "dev"]
+# Production stage
+FROM node:20-bullseye-slim AS production
 
-# production stage
-FROM base AS production
+WORKDIR /usr/src/app
 
-ENV NODE_ENV=production
+COPY package*.json ./
+COPY apps/server/package.json ./apps/server/
+COPY packages/ ./packages/
 
-RUN --mount=type=cache,target=/usr/src/app/.npm \
-    npm set cache /usr/src/app/.npm && \
-    npm ci --only=production
+RUN npm ci --only=production
 
-USER node
-
-COPY --chown=node:node ./healthcheck/ ./healthcheck/
-COPY --chown=node:node ./src/ ./src/
-COPY --chown=node:node index.js .
+COPY --from=builder /usr/src/app/apps/server/dist ./apps/server/dist
 
 EXPOSE 3000
 
-CMD ["npx tsc", "&&", "node", "dist/index.js"]
+CMD ["node", "apps/server/dist/index.js"]

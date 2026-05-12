@@ -1,26 +1,22 @@
 # Build stage for development
 FROM node:20-alpine AS development
 
-# Set working directory
 WORKDIR /usr/src/app
 
-# Copy package files
 COPY package*.json ./
+COPY apps/image-memory-be/package.json ./apps/image-memory-be/
+COPY packages/ ./packages/
 
-# Install dependencies
 RUN npm install --legacy-peer-deps
 
-# Copy the rest of the application code
 COPY . .
 
-# Generate Prisma client
-RUN npx prisma generate
+# Generate Prisma client for the specific app
+RUN cd apps/image-memory-be && npx prisma generate
 
-# Expose the port the app runs on
 EXPOSE 3001
 
-# Start the application in development mode
-CMD ["npm", "run", "start"]
+CMD ["npm", "run", "start", "--workspace=image-memory-be"]
 
 # Build stage for production
 FROM node:20-alpine AS build
@@ -28,34 +24,32 @@ FROM node:20-alpine AS build
 WORKDIR /usr/src/app
 
 COPY package*.json ./
+COPY apps/image-memory-be/package.json ./apps/image-memory-be/
+COPY packages/ ./packages/
 
-# Install all dependencies including dev for building
 RUN npm install --legacy-peer-deps
 
 COPY . .
 
-# Generate Prisma client and build the app
-RUN npx prisma generate
-RUN npm run build
+RUN cd apps/image-memory-be && npx prisma generate
+RUN npm run build --workspace=image-memory-be
 
 # Production stage
 FROM node:20-alpine AS production
 
 WORKDIR /usr/src/app
 
-# Copy package files and install only production dependencies
 COPY package*.json ./
+COPY apps/image-memory-be/package.json ./apps/image-memory-be/
+COPY packages/ ./packages/
+
 RUN npm install --omit=dev --legacy-peer-deps
 
-# Copy only the necessary files from the build stage
-COPY --from=build /usr/src/app/dist ./dist
-COPY --from=build /usr/src/app/prisma ./prisma
+COPY --from=build /usr/src/app/apps/image-memory-be/dist ./apps/image-memory-be/dist
+COPY --from=build /usr/src/app/apps/image-memory-be/prisma ./apps/image-memory-be/prisma
 
-# Generate Prisma client in production stage
-RUN npx prisma generate
+RUN cd apps/image-memory-be && npx prisma generate
 
-# Expose the application port
 EXPOSE 3001
 
-# Start the application in production mode
-CMD ["npm", "run", "start:prod"]
+CMD ["npm", "run", "start:prod", "--workspace=image-memory-be"]

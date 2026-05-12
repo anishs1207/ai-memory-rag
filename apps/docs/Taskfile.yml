@@ -1,0 +1,23 @@
+version: '3'
+
+tasks:
+  build:
+    desc: Build the docker image
+    cmds:
+      - docker build -t inqora-docs -f Dockerfile ../..
+
+  start:
+    desc: Start a local web server (using npx serve)
+    cmds:
+      - npx serve .
+
+  up:
+    desc: Start the service in a docker container
+    cmds:
+      - docker run -p 8080:80 inqora-docs
+
+  stop:
+    desc: Stop the service (docker)
+    cmds:
+      - docker stop inqora-docs || true
+      - docker rm inqora-docs || true

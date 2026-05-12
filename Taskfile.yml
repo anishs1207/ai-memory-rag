@@ -1,0 +1,41 @@
+version: '3'
+
+tasks:
+  up:
+    desc: Start all services using docker-compose
+    cmds:
+      - docker-compose up -d
+
+  down:
+    desc: Stop all services using docker-compose
+    cmds:
+      - docker-compose down
+
+  build:
+    desc: Build all docker images
+    cmds:
+      - docker-compose build
+
+  server:start:
+    desc: Start server locally
+    cmds:
+      - task -t apps/server/Taskfile.yml start
+
+  image-be:start:
+    desc: Start image-memory-be locally
+    cmds:
+      - task -t apps/image-memory-be/Taskfile.yml start
+
+  web:start:
+    desc: Start web locally
+    cmds:
+      - task -t apps/web/Taskfile.yml start
+
+  docs:start:
+    desc: Start docs locally
+    cmds:
+      - task -t apps/docs/Taskfile.yml start
+
+  all:start:
+    desc: Start all services locally (dev mode)
+    deps: [server:start, image-be:start, web:start, docs:start]

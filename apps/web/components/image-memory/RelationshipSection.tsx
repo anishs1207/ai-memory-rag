@@ -10,9 +10,15 @@ interface Relationship {
   evidence: string;
 }
 
+interface Person {
+  personId: string;
+  name?: string;
+  profileImageUrl?: string;
+}
+
 interface RelationshipSectionProps {
   relationships: Relationship[];
-  people: any[];
+  people: Person[];
 }
 
 const RelationshipSection: React.FC<RelationshipSectionProps> = ({ relationships, people }) => {

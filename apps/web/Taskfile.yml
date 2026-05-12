@@ -1,0 +1,23 @@
+version: '3'
+
+tasks:
+  build:
+    desc: Build the docker image
+    cmds:
+      - docker build -t inqora-web -f Dockerfile ../..
+
+  start:
+    desc: Start the service in development mode
+    cmds:
+      - npm run dev
+
+  up:
+    desc: Start the service in a docker container
+    cmds:
+      - docker run -p 3000:3000 --env-file .env inqora-web
+
+  stop:
+    desc: Stop the service (docker)
+    cmds:
+      - docker stop inqora-web || true
+      - docker rm inqora-web || true

@@ -1,8 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  ImageRecord,
-  TimelineEvent,
-} from './types/image-memory.types';
+import { ImageRecord, TimelineEvent } from './types/image-memory.types';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()

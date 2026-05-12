@@ -13,7 +13,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - agent-network
+      - inqora-network
 
   # Redis for image processing queues
   redis:
@@ -23,15 +23,29 @@ services:
     ports:
       - "6379:6379"
     networks:
-      - agent-network
+      - inqora-network
+
+  # Main Server
+  server:
+    build:
+      context: .
+      dockerfile: ./apps/server/Dockerfile
+    container_name: inqora-server
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://user:password@db:5432/agentic_db?schema=public
+    depends_on:
+      - db
+    networks:
+      - inqora-network
 
   # Image Memory Backend
-  image-memory-backend:
-    image: image-memory-backend
+  image-memory-be:
     build:
-      context: ./image-memory/backend
-      dockerfile: Dockerfile
-    container_name: image-memory-backend
+      context: .
+      dockerfile: ./apps/image-memory-be/Dockerfile
+    container_name: inqora-image-memory-be
     ports:
       - "3001:3001"
     environment:
@@ -44,40 +58,37 @@ services:
       - db
       - redis
     networks:
-      - agent-network
+      - inqora-network
 
-  # Image Memory Frontend
-  image-memory-frontend:
-    image: image-memory-frontend
+  # Web Frontend
+  web:
     build:
-      context: ./image-memory/frontend
-      dockerfile: Dockerfile
-    container_name: image-memory-frontend
+      context: .
+      dockerfile: ./apps/web/Dockerfile
+    container_name: inqora-web
     ports:
       - "3005:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:3001
     depends_on:
-      - image-memory-backend
+      - image-memory-be
+      - server
     networks:
-      - agent-network
+      - inqora-network
 
-  # Image Memory Documentation
-  image-memory-docs:
-    image: image-memory-docs
+  # Documentation
+  docs:
     build:
-      context: ./image-memory/image-docs
-      dockerfile: Dockerfile
-    container_name: image-memory-docs
+      context: .
+      dockerfile: ./apps/docs/Dockerfile
+    container_name: inqora-docs
     ports:
       - "8080:80"
-    depends_on:
-      - image-memory-backend
     networks:
-      - agent-network
+      - inqora-network
 
 networks:
-  agent-network:
+  inqora-network:
     driver: bridge
 
 volumes:
