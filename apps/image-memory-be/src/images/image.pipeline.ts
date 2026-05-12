@@ -137,7 +137,7 @@ export class ImagePipeline {
     this.logger.log(`[Pipeline] Stage 3: Relationship extraction`);
     const existingRels = this.store.getAllRelationships();
     const updatedRels = this.personService.resolveRelationships(
-      analysis.relationships as unknown as any[],
+      analysis.relationships,
       resolvedPersonIds,
       existingRels,
       timestamp,
@@ -200,7 +200,7 @@ export class ImagePipeline {
     this.logger.log(`[Pipeline] Stage 5: Re-clustering events`);
     const allImages = this.store.getAllImages();
     const clusters = this.eventService.clusterEvents(allImages);
-    this.store.setEvents(clusters as any[]);
+    this.store.setEvents(clusters);
 
     // predictive relationships
     const currentRels = this.store.getAllRelationships();
