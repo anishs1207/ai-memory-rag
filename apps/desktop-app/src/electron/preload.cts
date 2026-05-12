@@ -1,5 +1,13 @@
-const { contextBridge } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electron', {
   platform: process.platform,
+  getSources: () => ipcRenderer.invoke('get-sources'),
+  setWindowSize: (width: number, height: number) => ipcRenderer.send('set-window-size', width, height),
+  setIgnoreMouseEvents: (ignore: boolean, options?: { forward: boolean }) => ipcRenderer.send('set-ignore-mouse-events', ignore, options),
+  setFullScreen: (full: boolean) => ipcRenderer.send('set-full-screen', full),
+  geminiChat: (prompt: string) => ipcRenderer.invoke('gemini-chat', prompt),
+  gemmaChat: (prompt: string) => ipcRenderer.invoke('gemma-chat', prompt),
+  geminiVision: (prompt: string, base64Image: string) => ipcRenderer.invoke('gemini-vision', prompt, base64Image),
+  captureScreen: () => ipcRenderer.invoke('capture-screen'),
 });
