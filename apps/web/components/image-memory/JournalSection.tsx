@@ -11,7 +11,7 @@ interface JournalSectionProps {
 const JournalSection: React.FC<JournalSectionProps> = ({ journals, onRefresh }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]!);
   const journalListRef = useRef<HTMLDivElement>(null);
 
   const handleExportPDF = async () => {

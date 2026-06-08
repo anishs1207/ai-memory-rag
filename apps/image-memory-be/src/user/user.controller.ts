@@ -39,8 +39,9 @@ export class UserController {
   }
 
   @Post('logout')
-  logoutUser(@Req() req: Request) {
-    return this.userService.logoutUser(req);
+  logoutUser(@Res({ passthrough: true }) res: Response) {
+    // Pass Response object to allow clearing access token cookie
+    return this.userService.logoutUser(res);
   }
 
   @Get('me')

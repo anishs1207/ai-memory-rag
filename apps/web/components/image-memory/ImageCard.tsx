@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { getImageUrl } from '@/lib/api';
+import { getImageUrl, API_BASE_URL } from '@/lib/api';
 
 interface ImageCardProps {
   image: {
@@ -25,7 +25,7 @@ const ImageCard: React.FC<ImageCardProps> = ({ image, people = [], onClick }) =>
   const analysis = image.analysis || {};
   const description = analysis.rawDescription || "No description available";
   const tags = analysis.tags || [];
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
 
   const currentImageUrl = isPrivacyMode 
     ? `${API_BASE_URL}/images/${image.imageId}/privacy` 

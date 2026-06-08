@@ -1,9 +1,10 @@
-import { app, BrowserWindow, ipcMain, desktopCapturer, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, desktopCapturer, screen, session } from 'electron';
 import { getPreloadPath, getUIPath } from './pathResolver.js';
 import { isDev } from './utils.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as dotenv from 'dotenv';
 import path from 'path';
+import { exec } from 'child_process';
 
 dotenv.config({ path: path.join(process.cwd(), '.env') });
 
@@ -25,8 +26,26 @@ function createWindow() {
       preload: getPreloadPath(),
       nodeIntegration: false,
       contextIsolation: true,
+      webviewTag: true, // Enable <webview> tag support for embedding heyclicky.com
     },
   });
+
+  // Auto-approve media (microphone) permissions for offline local Speech Recognition
+  session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
+    if (permission === 'media') {
+      return true;
+    }
+    return false;
+  });
+
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    if (permission === 'media') {
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+
 
   // Center on top
   const primaryDisplay = screen.getPrimaryDisplay();
@@ -40,14 +59,29 @@ function createWindow() {
     mainWindow.loadFile(getUIPath());
   }
 
-  // Handle window resizing
+  // Handle window resizing and repositioning dynamically
   ipcMain.on('set-window-size', (event, width: number, height: number) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win) {
       win.setSize(width, height);
-      if (width > 1000) { // Assume full screen if width is large
-        win.center();
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+      
+      // If the window is in compact toolbar mode (small height), position it near the top.
+      // Otherwise, center it on screen for larger meeting panels or webviews.
+      if (height <= 80) {
+        win.setPosition(Math.floor((screenWidth - width) / 2), 20);
+      } else {
+        win.setPosition(Math.floor((screenWidth - width) / 2), Math.floor((screenHeight - height) / 2));
       }
+    }
+  });
+
+  // Handle setting window content protection (makes the window invisible to screen-sharing apps like Zoom/Teams)
+  ipcMain.on('set-content-protection', (event, protect: boolean) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) {
+      win.setContentProtection(protect);
     }
   });
 
@@ -131,6 +165,52 @@ function createWindow() {
       console.error('Capture screen error:', err);
       return '';
     }
+  });
+
+  // Handler to safely launch Windows applications or URLs requested by the voice companion
+  ipcMain.handle('execute-system-command', async (_, commandString: string) => {
+    return new Promise((resolve) => {
+      const cleanCommand = commandString.trim().toLowerCase();
+      let systemCommand = '';
+
+      // Map clean keyword intents to Windows executables/commands
+      if (cleanCommand === 'notepad') {
+        systemCommand = 'notepad.exe';
+      } else if (cleanCommand === 'calc' || cleanCommand === 'calculator') {
+        systemCommand = 'calc.exe';
+      } else if (cleanCommand === 'chrome' || cleanCommand === 'google chrome') {
+        systemCommand = 'start chrome';
+      } else if (cleanCommand === 'edge' || cleanCommand === 'microsoft edge') {
+        systemCommand = 'start msedge';
+      } else if (cleanCommand === 'paint' || cleanCommand === 'mspaint') {
+        systemCommand = 'mspaint.exe';
+      } else if (cleanCommand === 'explorer' || cleanCommand === 'file explorer') {
+        systemCommand = 'explorer.exe';
+      } else if (cleanCommand === 'terminal' || cleanCommand === 'cmd') {
+        systemCommand = 'start cmd.exe';
+      } else if (cleanCommand === 'powershell') {
+        systemCommand = 'start powershell.exe';
+      } else if (cleanCommand.startsWith('http://') || cleanCommand.startsWith('https://')) {
+        systemCommand = `start ${commandString}`;
+      } else {
+        // Fallback validation: only allow safe characters for custom commands/file paths
+        if (/^[a-zA-Z0-9\s._\\/:-]+$/.test(commandString)) {
+          systemCommand = commandString;
+        } else {
+          resolve({ success: false, error: 'Command validation failed (unsafe characters)' });
+          return;
+        }
+      }
+
+      exec(systemCommand, (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Execution failed for system command "${systemCommand}":`, error);
+          resolve({ success: false, error: error.message });
+        } else {
+          resolve({ success: true, stdout, stderr });
+        }
+      });
+    });
   });
 
   // Handle screen capture sources request

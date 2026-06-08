@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
+import { API_BASE_URL } from '@/lib/api';
 
 interface NetworkGraphProps {
   people: any[];
@@ -8,8 +9,8 @@ interface NetworkGraphProps {
 }
 
 const NetworkGraph: React.FC<NetworkGraphProps> = ({ people, relationships }) => {
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
   const containerRef = useRef<HTMLDivElement>(null);
+
   
   // Pan and Zoom state
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });

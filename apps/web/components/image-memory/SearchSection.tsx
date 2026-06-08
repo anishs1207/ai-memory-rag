@@ -18,8 +18,8 @@ const SearchSection: React.FC<{ people: any[] }> = ({ people }) => {
     setIsSearching(true);
     setVisualResults([]);
     try {
-      const data = await searchImages(query);
-      setResults(data);
+      const data: any = await searchImages(query);
+      setResults(data || []);
     } catch (err) {
       console.error('Search failed:', err);
     } finally {
@@ -34,8 +34,8 @@ const SearchSection: React.FC<{ people: any[] }> = ({ people }) => {
     setIsSearching(true);
     setResults([]);
     try {
-      const data = await searchByImage(file);
-      setVisualResults(data);
+      const data: any = await searchByImage(file);
+      setVisualResults(data || []);
     } catch (err) {
       console.error('Visual search failed:', err);
       alert('Visual search failed. Ensure someone is in the photo.');

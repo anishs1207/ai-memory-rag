@@ -17,6 +17,8 @@ import {
     FlashbackSection
 } from "@/components/image-memory";
 import { getAllImages, getAllPeople, getAllRelationships, getAllEvents, getJournals, resetAllData } from '@/lib/api';
+import './globals.css';
+
 
 export default function Home() {
     const [images, setImages] = useState<any[]>([]);
@@ -102,7 +104,7 @@ export default function Home() {
     }, [images]);
 
     return (
-        <main style={{ minHeight: '100vh', padding: '2rem 1rem max(5vw, 2rem)' }}>
+        <main className="image-memory-container" style={{ minHeight: '100vh', padding: '2rem 1rem max(5vw, 2rem)' }}>
             <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
                 <Header />
 

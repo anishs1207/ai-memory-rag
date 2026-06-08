@@ -41,11 +41,11 @@ const QuerySection: React.FC = () => {
         const newUserMessage: Message = { role: 'user', content: currentQuery };
         setMessages(prev => [...prev, newUserMessage]);
         
-        const data = await chatWithMemory(currentQuery, messages);
+        const data: any = await chatWithMemory(currentQuery, messages);
         setMessages(prev => [...prev, { role: 'assistant', content: data.answer }]);
       } else {
         setSearchResults([]);
-        const data = await searchImages(currentQuery);
+        const data: any = await searchImages(currentQuery);
         setSearchResults(data || []);
       }
     } catch (err: any) {

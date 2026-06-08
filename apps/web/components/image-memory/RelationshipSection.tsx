@@ -1,6 +1,8 @@
 'use client';
 
 import React from 'react';
+import { API_BASE_URL } from '@/lib/api';
+
 
 interface Relationship {
   person1Id: string;
@@ -22,7 +24,7 @@ interface RelationshipSectionProps {
 }
 
 const RelationshipSection: React.FC<RelationshipSectionProps> = ({ relationships, people }) => {
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
 
   const getPerson = (id: string) => {
     return people.find(p => p.personId === id);

@@ -104,7 +104,9 @@ export class UserService {
     };
   }
 
-  async logoutUser() {
+  async logoutUser(res: Response) {
+    // Clear the access token cookie to log the user out of the session
+    res.clearCookie('access_token');
     return {
       success: true,
       message: 'User logged out successfully',

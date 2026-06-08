@@ -125,3 +125,11 @@ input, textarea {
   background-color: var(--glass-hover) !important;
   border-color: rgba(255, 255, 255, 0.2) !important;
 }
+
+.image-memory-container {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  width: 100%;
+}
+

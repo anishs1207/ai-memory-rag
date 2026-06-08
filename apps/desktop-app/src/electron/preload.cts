@@ -10,4 +10,8 @@ contextBridge.exposeInMainWorld('electron', {
   gemmaChat: (prompt: string) => ipcRenderer.invoke('gemma-chat', prompt),
   geminiVision: (prompt: string, base64Image: string) => ipcRenderer.invoke('gemini-vision', prompt, base64Image),
   captureScreen: () => ipcRenderer.invoke('capture-screen'),
+  setContentProtection: (protect: boolean) => ipcRenderer.send('set-content-protection', protect),
+  // Expose system execution capabilities safely to launch apps (e.g. Chrome, Notepad)
+  executeSystemCommand: (command: string) => ipcRenderer.invoke('execute-system-command', command),
 });
+

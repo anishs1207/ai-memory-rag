@@ -8,7 +8,7 @@ const FlashbackSection: React.FC = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await getFlashbacks();
+        const data: any = await getFlashbacks();
         setFlashbacks(data || []);
       } catch (err) {
         console.error('Failed to load flashbacks:', err);

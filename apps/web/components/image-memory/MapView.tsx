@@ -12,8 +12,8 @@ const MapView: React.FC<MapViewProps> = ({ images }) => {
   useEffect(() => {
     const fetchPredictions = async () => {
       try {
-        const data = await getPredictions();
-        setPredictions(data);
+        const data: any = await getPredictions();
+        setPredictions(data || []);
       } catch (err) {
         console.error('Failed to fetch predictions:', err);
       }

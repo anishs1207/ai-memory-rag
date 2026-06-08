@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { API_BASE_URL } from '@/lib/api';
 
 interface PersonCardProps {
   person: {
@@ -28,7 +29,7 @@ const PersonCard: React.FC<PersonCardProps> = ({ person, relationships = [], peo
   const [highlight, setHighlight] = React.useState<any>(null);
   const [isGeneratingHighlight, setIsGeneratingHighlight] = React.useState(false);
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
   const profileUrl = person.profileImageUrl 
     ? (person.profileImageUrl.startsWith('http') ? person.profileImageUrl : `${API_BASE_URL}${person.profileImageUrl}`)
     : null;

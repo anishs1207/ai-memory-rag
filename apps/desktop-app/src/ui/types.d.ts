@@ -13,6 +13,8 @@ export interface ElectronAPI {
   gemmaChat: (prompt: string) => Promise<string>;
   geminiVision: (prompt: string, base64Image: string) => Promise<string>;
   captureScreen: () => Promise<string>;
+  setContentProtection: (protect: boolean) => void;
+  executeSystemCommand: (command: string) => Promise<{ success: boolean; stdout?: string; stderr?: string; error?: string }>;
 }
 
 declare global {
