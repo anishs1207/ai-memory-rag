@@ -77,7 +77,7 @@ export default function ChatSidebar({
     }, {} as Record<string, Conversation[]>);
 
     return (
-        <Sidebar>
+        <Sidebar data-tour="chat-sidebar">
             <SidebarHeader className="flex flex-row items-center justify-between gap-2 px-2 py-4">
                 <div className="flex flex-row items-center gap-2 px-2">
                     <div className="bg-primary size-8 rounded-md flex items-center justify-center">

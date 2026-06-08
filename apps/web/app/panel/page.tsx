@@ -132,7 +132,7 @@ export default function Page() {
         setError(null);
         addLog(`Environmental Simulation: ${userTopic || "Generic"}`, "warning", "Injecting stress factors into the environment.");
         try {
-            const resp = await axios.post(`${API_BASE}/take-action`, {
+            const resp = await axios.post<any>(`${API_BASE}/take-action`, {
                 agents: personas,
                 top5Panel: topFive,
                 chosenLeader: leader,
@@ -151,7 +151,7 @@ export default function Page() {
 
             // Fetch News Reactions without blocking the main render
             addLog("Media Pulse", "info", "Monitoring global networks for reactions...");
-            axios.post(`${API_BASE}/generate-news`, { issue, finalAction, outcome })
+            axios.post<any>(`${API_BASE}/generate-news`, { issue, finalAction, outcome })
                 .then(newsResp => {
                     setNews(newsResp.data.news);
                     addLog("News Received", "success", "Media reports aggregated.");
@@ -229,6 +229,7 @@ export default function Page() {
                                             Instance Count
                                         </label>
                                         <Input
+                                            data-tour="panel-instances"
                                             type="number"
                                             min={4}
                                             max={50}
@@ -238,6 +239,7 @@ export default function Page() {
                                         />
                                     </div>
                                     <Button
+                                        data-tour="panel-init"
                                         disabled={loading}
                                         onClick={generatePersonas}
                                         className="h-10 px-6"
@@ -277,7 +279,7 @@ export default function Page() {
                                                 </Button>
                                             )}
                                             {(phase === "leader" || phase === "crisis") && (
-                                                <div className="flex items-center gap-2">
+                                                <div data-tour="panel-stress" className="flex items-center gap-2">
                                                     <Input
                                                         placeholder="Simulation parameter..."
                                                         value={userTopic}
@@ -509,7 +511,7 @@ export default function Page() {
 
                     {/* Activity Console */}
                     <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-20">
-                        <Card className="h-[550px] flex flex-col shadow-none border-muted">
+                        <Card data-tour="panel-logs" className="h-[550px] flex flex-col shadow-none border-muted">
                             <CardHeader className="py-3 px-4 border-b bg-muted/10">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">

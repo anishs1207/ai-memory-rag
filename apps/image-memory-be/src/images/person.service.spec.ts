@@ -1,4 +1,3 @@
-import { vi } from 'vitest';
 import { PersonService } from './person.service';
 import { VectorService } from './vector.service';
 import { VlmService } from './vlm.service';
@@ -11,11 +10,11 @@ describe('PersonService', () => {
 
   beforeEach(() => {
     vectorService = {
-      generateEmbedding: vi.fn().mockResolvedValue(new Array(384).fill(0.1)),
-      cosineSimilarity: vi.fn().mockReturnValue(0.8),
+      generateEmbedding: jest.fn().mockResolvedValue(new Array(384).fill(0.1)),
+      cosineSimilarity: jest.fn().mockReturnValue(0.8),
     } as unknown as VectorService;
     vlmService = {
-      queryContext: vi.fn().mockResolvedValue('Mocked biography'),
+      queryContext: jest.fn().mockResolvedValue('Mocked biography'),
     } as unknown as VlmService;
     service = new PersonService(vectorService, vlmService);
   });
@@ -27,7 +26,7 @@ describe('PersonService', () => {
   describe('resolvePeople', () => {
     it('should create a new person if no match is found', async () => {
       // Mock cosineSimilarity to return low score for no match
-      vi.spyOn(vectorService, 'cosineSimilarity').mockReturnValue(0.1);
+      jest.spyOn(vectorService, 'cosineSimilarity').mockReturnValue(0.1);
 
       const detected: DetectedPerson[] = [
         {

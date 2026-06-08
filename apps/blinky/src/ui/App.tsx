@@ -118,10 +118,61 @@ function App() {
     window.electron.setContentProtection(contentProtected);
   }, [contentProtected]);
 
-  // Sync click-through pass-through state on state toggle
+  // Sync mixed click-through pointer events on overlay windows
   useEffect(() => {
-    window.electron.setIgnoreMouseEvents(clickThrough, { forward: true });
-  }, [clickThrough]);
+    if (!isGuideMode && !clickThrough) {
+      window.electron.setIgnoreMouseEvents(false);
+      return;
+    }
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const targetElement = event.target as HTMLElement;
+      // Re-enable clicks if mouse is over interactive panel, top-bar, or exit guide elements
+      if (
+        targetElement.closest('.interactive-overlay') || 
+        targetElement.closest('.top-bar') || 
+        targetElement.closest('.assistant-panel') ||
+        targetElement.closest('.clicky-container')
+      ) {
+        window.electron.setIgnoreMouseEvents(false);
+      } else {
+        // Otherwise, ignore mouse events so clicks pass through to native applications
+        window.electron.setIgnoreMouseEvents(true, { forward: true });
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    // Initially ignore mouse events so clicks pass through by default
+    window.electron.setIgnoreMouseEvents(true, { forward: true });
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.electron.setIgnoreMouseEvents(false);
+    };
+  }, [isGuideMode, clickThrough]);
+
+  // Sync full screen and restore normal sizing when entering/exiting Guide Mode
+  useEffect(() => {
+    if (isGuideMode) {
+      window.electron.setFullScreen(true);
+    } else {
+      window.electron.setFullScreen(false);
+      // Re-trigger standard size alignment for current window mode
+      if (windowMode === 'toolbar') {
+        window.electron.setWindowSize(800, 65);
+      } else if (windowMode === 'stealth') {
+        window.electron.setWindowSize(460, 300);
+      } else if (windowMode === 'panel') {
+        window.electron.setWindowSize(800, 520);
+      } else if (windowMode === 'heyclicky') {
+        if (clickySubMode === 'cly') {
+          window.electron.setWindowSize(450, 520);
+        } else {
+          window.electron.setWindowSize(1000, 750);
+        }
+      }
+    }
+  }, [isGuideMode, windowMode, clickySubMode]);
 
   // --- WEBVIEW NAVIGATION HANDLERS ---
   const handleWebviewLoadStop = () => {
@@ -205,49 +256,6 @@ function App() {
   };
 
   // --- AI INTERACTION HANDLERS ---
-  const handleGuideSearch = useCallback(async (customPrompt?: string) => {
-    const query = customPrompt || inputValue;
-    if (!query) return;
-    setIsAiLoading(true);
-    setGuideText("Scanning screen...");
-
-    try {
-      // Guide mode always requires a screen screenshot to fetch coordinates
-      const base64Data = await getScreenContext() || (await window.electron.captureScreen()).split(',')[1];
-
-      const prompt = `The user wants to know: "${query}". 
-      Analyze the provided screenshot and find the exact location of the UI element or information they need. 
-      Answer in 1 short sentence and provide the coordinate [x, y] in percentages (0-100) of where I should point.
-      Be as precise as possible.
-      Example: "The settings button is here. [92, 4]"`;
-
-      const response = await window.electron.geminiVision(prompt, base64Data);
-
-      const coordMatch = response.match(/\[(\d+),\s*(\d+)\]/);
-      if (coordMatch) {
-        const xPercent = parseInt(coordMatch[1]);
-        const yPercent = parseInt(coordMatch[2]);
-        setArrowPos({
-          x: (xPercent / 100) * window.innerWidth,
-          y: (yPercent / 100) * window.innerHeight
-        });
-      } else {
-        setArrowPos({ x: Math.random() * window.innerWidth, y: Math.random() * window.innerHeight });
-      }
-
-      const cleanResponse = response.replace(/\[\d+,\s*\d+\]/, '').trim();
-      setGuideText(cleanResponse);
-      speak(cleanResponse);
-      setCapturedScreenshot(null);
-    } catch (err) {
-      console.error('Guide error:', err);
-      setGuideText("Sorry, I couldn't see your screen properly.");
-    } finally {
-      setIsAiLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inputValue, capturedScreenshot, autoAttachScreenshot, speak]);
-
   const handleAssist = useCallback(async (customPrompt?: string) => {
     const query = customPrompt || inputValue;
     if (!query && !capturedScreenshot && !autoAttachScreenshot) return;
@@ -297,136 +305,170 @@ function App() {
     await handleAssist(promptText);
   };
 
-  // --- SYSTEM APPLICATION LAUNCH EXECUTOR ---
-  const handleSystemExecution = async (query: string) => {
-    let command = query.toLowerCase().trim();
-    
-    // Clean common prefixes (e.g. "open chrome please" -> "chrome")
-    const prefixes = ['open ', 'launch ', 'start ', 'run ', 'please '];
-    for (const prefix of prefixes) {
-      if (command.startsWith(prefix)) {
-        command = command.substring(prefix.length).trim();
-      }
-    }
-    command = command.replace(/\bplease\b/g, '').trim();
+  // --- AUTOMATED WINDOWS ACTIONS ---
+  // Generates and runs PowerShell scripts to automate multi-step applications controls
+  const handleAutomation = useCallback(async (queryText: string) => {
+    setClickyStatus('Generating automation...');
+    const actionTimestamp = new Date().toLocaleTimeString();
 
-    let appName = '';
-    // Check regex matches first for speed and local certainty
-    if (/notepad/.test(command)) {
-      appName = 'notepad';
-    } else if (/calc|calculator/.test(command)) {
-      appName = 'calc';
-    } else if (/chrome|browser|google/.test(command)) {
-      appName = 'chrome';
-    } else if (/edge/.test(command)) {
-      appName = 'edge';
-    } else if (/paint|mspaint/.test(command)) {
-      appName = 'paint';
-    } else if (/explorer|file explorer/.test(command)) {
-      appName = 'explorer';
-    } else if (/terminal|cmd|command prompt/.test(command)) {
-      appName = 'terminal';
-    } else if (/powershell/.test(command)) {
-      appName = 'powershell';
-    } else if (/^(https?:\/\/)?(www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/.test(command)) {
-      let url = command;
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = 'https://' + url;
-      }
-      appName = url;
-    }
+    try {
+      const automationPrompt = `You are an expert Windows OS automation script generator.
+The user wants to do: "${queryText}".
+Generate a clean and safe Windows PowerShell script to accomplish this task.
 
-    // Fallback: Ask local Gemma model to parse application name from conversational text
-    if (!appName) {
-      try {
-        const extractionPrompt = `The user wants to open an application. Their request is: "${query}".
-Identify the application they want to run. Respond with ONLY the single name of the application from this list (notepad, calc, chrome, edge, paint, explorer, terminal, powershell, or a web URL starting with http/https).
-If it does not match any of these list items or is a general query, respond with 'none'. Do NOT include any punctuation, markdown format, or surrounding explanation.`;
-        const llmResolved = (await window.electron.gemmaChat(extractionPrompt)).trim().toLowerCase();
-        if (llmResolved !== 'none' && !llmResolved.includes(' ') && llmResolved.length < 50) {
-          appName = llmResolved;
+Guidelines:
+1. Opening applications:
+   - For web searches or URLs: Start-Process "chrome.exe" "https://www.google.com/search?q=query_text"
+   - For other tools: Start-Process "notepad.exe", Start-Process "calc.exe", Start-Process "explorer.exe", Start-Process "cmd.exe", Start-Process "powershell.exe".
+2. Application window interaction:
+   - Always add a short delay to let the app load: Start-Sleep -Milliseconds 800
+   - Create a Wscript.Shell COM object:
+     $wshell = New-Object -ComObject Wscript.Shell
+   - Activate the application window by title:
+     $wshell.AppActivate('Notepad')
+     Start-Sleep -Milliseconds 200
+   - Send keys to type text or click shortcuts:
+     - For standard text: $wshell.SendKeys('Typed text')
+     - For special keys: '{ENTER}' for Enter, '{TAB}' for Tab, etc.
+     - For key combinations: '^s' for Ctrl+S (Save), '%{F4}' for Alt+F4.
+3. Keep the script completely safe. No destructive commands (like removing files or registry keys).
+4. Output ONLY the raw executable PowerShell script code. No explanations, no extra talk, and no markdown blocks other than a standard \`\`\`powershell ... \`\`\` code block.
+
+Write the PowerShell script to accomplish: "${queryText}"`;
+
+      const responseText = await window.electron.gemmaChat(automationPrompt);
+      let powerShellScript = responseText.trim();
+
+      // Clean markdown code blocks from the LLM response
+      if (powerShellScript.includes('```')) {
+        const regexMatch = powerShellScript.match(/```(?:powershell)?([\s\S]*?)```/);
+        if (regexMatch) {
+          powerShellScript = regexMatch[1];
         }
-      } catch (err) {
-        console.error('LLM intent resolver error:', err);
       }
-    }
+      powerShellScript = powerShellScript.trim();
 
-    const timestamp = new Date().toLocaleTimeString();
+      setClickyStatus('Executing action...');
+      const executionResult = await window.electron.executePowershellScript(powerShellScript);
 
-    if (appName) {
-      setClickyStatus(`Executing: ${appName}...`);
-      try {
-        const result = await window.electron.executeSystemCommand(appName);
-        if (result.success) {
-          setExecutionLogs(prev => [
-            {
-              command: query,
-              timestamp,
-              status: 'success',
-              details: `Successfully launched ${appName}`
-            },
-            ...prev
-          ]);
-          setClickyStatus('Idle');
-          speak(`Opened ${appName}`);
-        } else {
-          throw new Error(result.error || 'Execution failed');
-        }
-      } catch (err) {
-        const error = err as Error;
-        setExecutionLogs(prev => [
+      if (executionResult.success) {
+        setExecutionLogs((prevLogs) => [
           {
-            command: query,
-            timestamp,
-            status: 'failed',
-            details: error.message || `Failed to launch ${appName}`
-          },
-          ...prev
-        ]);
-        setClickyStatus('Idle');
-        speak(`Failed to open ${appName}`);
-      }
-    } else {
-      // If no execution mapping is found, treat as a general conversational query
-      setClickyStatus('Thinking...');
-      try {
-        const response = await window.electron.gemmaChat(query);
-        setClickyStatus('Idle');
-        speak(response);
-        setExecutionLogs(prev => [
-          {
-            command: query,
-            timestamp,
+            command: queryText,
+            timestamp: actionTimestamp,
             status: 'success',
-            details: response
+            details: 'Executed PowerShell automation script successfully.'
           },
-          ...prev
+          ...prevLogs
         ]);
-      } catch {
-        setClickyStatus('Idle');
-        setExecutionLogs(prev => [
-          {
-            command: query,
-            timestamp,
-            status: 'failed',
-            details: 'Failed to process assistant query.'
-          },
-          ...prev
-        ]);
+        speak("Action completed successfully.");
+      } else {
+        throw new Error(executionResult.error || 'PowerShell execution returned an error.');
       }
+    } catch (err) {
+      const errorObject = err as Error;
+      console.error('Automation failed:', errorObject);
+      setExecutionLogs((prevLogs) => [
+        {
+          command: queryText,
+          timestamp: actionTimestamp,
+          status: 'failed',
+          details: errorObject.message || 'PowerShell script failed.'
+        },
+        ...prevLogs
+      ]);
+      speak("Failed to complete the desktop automation.");
     }
-  };
+  }, [speak]);
 
-  // --- VOICE SPEECH HANDLERS ---
-  const handleSpeechInput = useCallback((text: string) => {
-    if (windowMode === 'heyclicky' && clickySubMode === 'cly') {
-      handleSystemExecution(text);
-    } else {
-      setInputValue(text);
-      handleAssist(text);
+  // --- NATIVE INTERFACE VISUAL GUIDANCE ---
+  // Hides the Inqora window, captures the desktop, gets target coordinates from Gemini Vision,
+  // and displays a pointing arrow overlay on the screen to guide the user visually.
+  const handleGuidance = useCallback(async (queryText: string) => {
+    setGuideText("Scanning desktop contents...");
+    try {
+      // captureScreen handles window hiding and restoration automatically in main process
+      const screenSnapshotData = await getScreenContext() || (await window.electron.captureScreen()).split(',')[1];
+
+      const visionSearchPrompt = `The user is looking for or wants to click: "${queryText}".
+Analyze this desktop screenshot and identify the exact location of the target UI element or text.
+Provide your response as a single, friendly instruction sentence guiding them, and include the coordinates of the target element in percentage values [x, y] (from 0 to 100) at the very end of your response.
+Example: "The Recycle Bin icon is at the top left. [4, 5]"`;
+
+      const geminiResponse = await window.electron.geminiVision(visionSearchPrompt, screenSnapshotData);
+
+      const coordinateMatch = geminiResponse.match(/\[(\d+),\s*(\d+)\]/);
+      if (coordinateMatch) {
+        const xPercentCoordinate = parseInt(coordinateMatch[1]);
+        const yPercentCoordinate = parseInt(coordinateMatch[2]);
+
+        // Position the arrow overlay relative to the viewport size (which is full-screen in Guide Mode)
+        setArrowPos({
+          x: (xPercentCoordinate / 100) * window.innerWidth,
+          y: (yPercentCoordinate / 100) * window.innerHeight
+        });
+      } else {
+        // Fallback arrow placement if coordinate detection fails
+        setArrowPos({ x: window.innerWidth / 2, y: 150 });
+      }
+
+      const guidanceDescription = geminiResponse.replace(/\[\d+,\s*\d+\]/, '').trim();
+      setGuideText(guidanceDescription);
+      speak(guidanceDescription);
+    } catch (err) {
+      console.error('Screen guidance failed:', err);
+      setGuideText("Sorry, I could not scan your screen properly.");
+      speak("Sorry, I could not scan your screen properly.");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [windowMode, clickySubMode, handleAssist]);
+  }, [getScreenContext, speak]);
+
+  // --- UNIFIED USER QUERY SUBMITTER ---
+  // Entry point for all text, speech, and dashboard inputs. Resolves user intent using LLM
+  // and routes to Automation, Guidance (visual overlay pointer), or Conversation.
+  const handleQuerySubmit = useCallback(async (customPrompt?: string) => {
+    const activeQuery = customPrompt || inputValue;
+    if (!activeQuery) return;
+
+    setIsAiLoading(true);
+    setClickyStatus('Routing query...');
+    setInputValue(""); // Clear the input field for a premium experience
+
+    try {
+      const intentClassificationPrompt = `Classify this user's desktop assistant request: "${activeQuery}"
+Select exactly one category:
+- AUTOMATION: The user wants to open/launch an app and do something, search, type text, or run automated desktop keyboard/mouse interactions (e.g., "open chrome and search cat videos", "open notepad and type hello", "run calc and do 5+5").
+- GUIDANCE: The user wants to locate, find, click, or see a pointing direction to a visual UI element, button, window, or icon on their current desktop (e.g., "where is the recycle bin", "how do I click settings", "point to the file menu", "where is Chrome").
+- CONVERSATION: A general chat question, reflection, help, welcome greeting, or non-automation query (e.g., "what is the capital of France?", "explain photosynthesis", "who are you").
+
+Respond with ONLY one word: AUTOMATION, GUIDANCE, or CONVERSATION. Do not write punctuation, markdown, or any other explanations.`;
+
+      const classificationResult = await window.electron.gemmaChat(intentClassificationPrompt);
+      const classifiedIntent = classificationResult.trim().toUpperCase();
+      console.log('Query intent classified as:', classifiedIntent);
+
+      if (classifiedIntent.includes('AUTOMATION')) {
+        await handleAutomation(activeQuery);
+      } else if (classifiedIntent.includes('GUIDANCE')) {
+        setIsGuideMode(true);
+        await handleGuidance(activeQuery);
+      } else {
+        await handleAssist(activeQuery);
+      }
+    } catch (err) {
+      console.error('Routing failed, falling back to Assist:', err);
+      await handleAssist(activeQuery);
+    } finally {
+      setIsAiLoading(false);
+      setClickyStatus('Idle');
+    }
+  }, [inputValue, handleAutomation, handleGuidance, handleAssist]);
+
+  // Voice command processor wrapping standard input submitter
+  const handleSpeechInput = useCallback((speechText: string) => {
+    handleQuerySubmit(speechText);
+  }, [handleQuerySubmit]);
+
+
 
   // Speech Recognition Web API configuration
   useEffect(() => {
@@ -507,8 +549,7 @@ If it does not match any of these list items or is a general query, respond with
         setShowPanel(prev => !prev);
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        if (isGuideMode) handleGuideSearch();
-        else handleAssist();
+        handleQuerySubmit();
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'g') {
         setIsGuideMode(prev => !prev);
@@ -529,7 +570,7 @@ If it does not match any of these list items or is a general query, respond with
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isGuideMode, handleAssist, handleGuideSearch, clickThrough, contentProtected, capturedScreenshot]);
+  }, [handleQuerySubmit, clickThrough, contentProtected, capturedScreenshot]);
 
   // --- MOUSE HOVER CONTROLS FOR CLICK-THROUGH ---
   const handleMouseEnter = () => {
@@ -584,6 +625,20 @@ If it does not match any of these list items or is a general query, respond with
           </motion.div>
         )}
       </AnimatePresence>
+
+      {isGuideMode && (
+        <button
+          className="interactive-overlay exit-guide-btn"
+          onClick={() => {
+            setIsGuideMode(false);
+            setArrowPos({ x: -100, y: -100 });
+          }}
+          title="Exit Guide Mode and restore window size"
+        >
+          <Minimize2 size={13} style={{ marginRight: 6 }} />
+          Exit Guide Mode
+        </button>
+      )}
 
       <div
         className="window-wrapper"
@@ -701,9 +756,9 @@ If it does not match any of these list items or is a general query, respond with
                 placeholder="Ask Inqora about screen..."
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAssist()}
+                onKeyDown={(e) => e.key === 'Enter' && handleQuerySubmit()}
               />
-              <button className="toolbar-send-btn" onClick={() => handleAssist()}>
+              <button className="toolbar-send-btn" onClick={() => handleQuerySubmit()}>
                 <Play size={8} fill="currentColor" />
               </button>
             </div>
@@ -829,7 +884,7 @@ If it does not match any of these list items or is a general query, respond with
                     placeholder={isGuideMode ? "How do I click..." : "Ask about your screen or search terms..."}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && (isGuideMode ? handleGuideSearch() : handleAssist())}
+                    onKeyDown={(e) => e.key === 'Enter' && handleQuerySubmit()}
                   />
 
                   {/* Auto screenshot attachment checkbox */}
@@ -847,7 +902,7 @@ If it does not match any of these list items or is a general query, respond with
                     <Zap size={12} style={{ marginRight: 2 }} /> Smart
                   </button>
 
-                  <button className="play-btn" onClick={isGuideMode ? () => handleGuideSearch() : () => handleAssist()}>
+                  <button className="play-btn" onClick={() => handleQuerySubmit()}>
                     <Play size={12} fill="currentColor" />
                   </button>
                 </div>
@@ -914,13 +969,12 @@ If it does not match any of these list items or is a general query, respond with
                   <input
                     type="text"
                     className="input-field"
-                    placeholder="Type a voice command (e.g. open notepad)..."
+                    placeholder="Type a command (e.g. open chrome and search maps)..."
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && inputValue) {
-                        handleSystemExecution(inputValue);
-                        setInputValue("");
+                        handleQuerySubmit(inputValue);
                       }
                     }}
                   />
@@ -928,8 +982,7 @@ If it does not match any of these list items or is a general query, respond with
                     className="play-btn" 
                     onClick={() => {
                       if (inputValue) {
-                        handleSystemExecution(inputValue);
-                        setInputValue("");
+                        handleQuerySubmit(inputValue);
                       }
                     }}
                   >

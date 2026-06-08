@@ -373,6 +373,7 @@ export default function ChatContent({
                             accept=".pdf,.txt,.md"
                         />
                         <Button
+                            data-tour="chat-upload"
                             variant="outline"
                             size="sm"
                             onClick={() => fileInputRef.current?.click()}
@@ -389,7 +390,7 @@ export default function ChatContent({
                     </div>
                 </div>
 
-                <div className="px-4 py-2 flex items-center gap-2 bg-muted/20 overflow-x-auto no-scrollbar shrink-0 flex-nowrap min-w-0">
+                <div data-tour="chat-models" className="px-4 py-2 flex items-center gap-2 bg-muted/20 overflow-x-auto no-scrollbar shrink-0 flex-nowrap min-w-0">
                     {(Object.keys(MODEL_CONFIGS) as ModelType[]).map((m) => {
                         const Config = MODEL_CONFIGS[m];
                         return (
@@ -608,6 +609,7 @@ export default function ChatContent({
                     >
                         <div className="flex flex-col">
                             <PromptInputTextarea
+                                data-tour="chat-textarea"
                                 placeholder={conversation.model === "pdf" ? `Ask about ${conversation.selectedFile || "document"}...` : "Ask a question..."}
                                 className="min-h-[50px] pt-3 pl-4 text-sm leading-relaxed"
                             />

@@ -3,6 +3,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import OnboardingWidget from "@/components/onboarding/OnboardingWidget";
 
 const geist = Geist({ subsets: ["latin"] });
 
@@ -26,6 +27,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           {children}
+          <OnboardingWidget />
         </ThemeProvider>
       </body>
     </html>

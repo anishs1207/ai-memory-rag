@@ -13,5 +13,6 @@ contextBridge.exposeInMainWorld('electron', {
   setContentProtection: (protect: boolean) => ipcRenderer.send('set-content-protection', protect),
   // Expose system execution capabilities safely to launch apps (e.g. Chrome, Notepad)
   executeSystemCommand: (command: string) => ipcRenderer.invoke('execute-system-command', command),
+  executePowershellScript: (script: string) => ipcRenderer.invoke('execute-powershell-script', script),
 });
 

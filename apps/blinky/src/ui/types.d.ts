@@ -15,6 +15,7 @@ export interface ElectronAPI {
   captureScreen: () => Promise<string>;
   setContentProtection: (protect: boolean) => void;
   executeSystemCommand: (command: string) => Promise<{ success: boolean; stdout?: string; stderr?: string; error?: string }>;
+  executePowershellScript: (script: string) => Promise<{ success: boolean; stdout?: string; stderr?: string; error?: string }>;
 }
 
 declare global {

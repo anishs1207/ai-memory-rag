@@ -133,14 +133,18 @@ export default function Home() {
 
                 <FlashbackSection />
 
-                <UploadSection onUploadSuccess={fetchData} />
+                <div data-tour="vault-upload">
+                    <UploadSection onUploadSuccess={fetchData} />
+                </div>
 
-                <SearchSection people={people} />
+                <div data-tour="vault-search">
+                    <SearchSection people={people} />
+                </div>
 
                 <QuerySection />
 
                 <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <div data-tour="vault-tabs" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                         {['gallery', 'people', 'relationships', 'timeline', 'journal', 'map'].map((tab) => (
                             <button
                                 key={tab}
@@ -163,7 +167,7 @@ export default function Home() {
                             </button>
                         ))}
                     </div>
-                    <div style={{ display: 'flex', gap: '1rem' }}>
+                    <div data-tour="vault-sync" style={{ display: 'flex', gap: '1rem' }}>
                         <button
                             onClick={fetchData}
                             style={{

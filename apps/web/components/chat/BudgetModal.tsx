@@ -86,7 +86,7 @@ export function BudgetModal({
             id: Date.now().toString(),
             description: desc,
             amount: parseFloat(amount),
-            date: new Date().toISOString().split("T")[0],
+            date: new Date().toISOString().split("T")[0] || "",
             category: category as string
         };
         setBudgetData(prev => ({
