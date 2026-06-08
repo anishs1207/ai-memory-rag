@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  Play, 
-  Square, 
+import {
+  Play,
+  Square,
   ChevronDown,
   BrainCircuit,
   Sparkles,
@@ -23,7 +23,7 @@ function App() {
   const [inputValue, setInputValue] = useState("");
   const [aiResponse, setAiResponse] = useState<string>("Hello! I'm your Inqora AI assistant. Ask me anything about your screen, or toggle Guide Mode to have me show you the way.");
   const [isAiLoading, setIsAiLoading] = useState(false);
-  
+
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const speak = useCallback((text: string) => {
@@ -69,31 +69,31 @@ function App() {
     if (!inputValue) return;
     setIsAiLoading(true);
     setGuideText("Scanning screen...");
-    
+
     try {
       const screenshot = await window.electron.captureScreen();
       const base64Data = screenshot.split(',')[1];
-      
+
       const prompt = `The user wants to know: "${inputValue}". 
       Analyze the provided screenshot and find the exact location of the UI element or information they need. 
       Answer in 1 short sentence and provide the coordinate [x, y] in percentages (0-100) of where I should point.
       Be as precise as possible.
       Example: "The settings button is here. [92, 4]"`;
-      
+
       const response = await window.electron.geminiVision(prompt, base64Data);
-      
+
       const coordMatch = response.match(/\[(\d+),\s*(\d+)\]/);
       if (coordMatch) {
         const xPercent = parseInt(coordMatch[1]);
         const yPercent = parseInt(coordMatch[2]);
-        setArrowPos({ 
-          x: (xPercent / 100) * window.innerWidth, 
-          y: (yPercent / 100) * window.innerHeight 
+        setArrowPos({
+          x: (xPercent / 100) * window.innerWidth,
+          y: (yPercent / 100) * window.innerHeight
         });
       } else {
         setArrowPos({ x: Math.random() * window.innerWidth, y: Math.random() * window.innerHeight });
       }
-      
+
       const cleanResponse = response.replace(/\[\d+,\s*\d+\]/, '').trim();
       setGuideText(cleanResponse);
       speak(cleanResponse);
@@ -108,11 +108,11 @@ function App() {
   const handleAssist = useCallback(async () => {
     if (!inputValue && !isCapturing) return;
     setIsAiLoading(true);
-    
+
     try {
       const screenshot = await window.electron.captureScreen();
       const base64Data = screenshot.split(',')[1];
-      
+
       const prompt = inputValue || "Summarize what you see on my screen in a few helpful bullet points.";
       const response = await window.electron.geminiVision(prompt, base64Data);
       setAiResponse(response);
@@ -137,7 +137,7 @@ function App() {
       }
     };
     initSources();
-    
+
     const fetchGreeting = async () => {
       try {
         const greeting = await window.electron.geminiChat("Write a very short, friendly 1-sentence welcome message for a desktop AI assistant called Inqora.");
@@ -202,12 +202,12 @@ function App() {
       {/* Guide Mode Arrow */}
       <AnimatePresence>
         {isGuideMode && arrowPos.x !== -100 && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0 }}
-            animate={{ 
-              opacity: 1, 
-              scale: 1, 
-              x: arrowPos.x, 
+            animate={{
+              opacity: 1,
+              scale: 1,
+              x: arrowPos.x,
               y: arrowPos.y,
               rotate: -15
             }}
@@ -216,17 +216,17 @@ function App() {
             className="guide-arrow"
           >
             <div className="guide-arrow-glow" />
-            <svg 
-              className="guide-arrow-svg" 
-              width="32" 
-              height="32" 
-              viewBox="0 0 24 24" 
+            <svg
+              className="guide-arrow-svg"
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
               fill="currentColor"
             >
               <path d="M7 2l12 10-12 10V2z" />
             </svg>
-            
-            <motion.div 
+
+            <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 30 }}
               className="guide-voice-bubble"
@@ -237,8 +237,8 @@ function App() {
         )}
       </AnimatePresence>
 
-      <div 
-        className="window-wrapper" 
+      <div
+        className="window-wrapper"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
@@ -247,7 +247,7 @@ function App() {
           <div className="top-bar-icon">
             <BrainCircuit size={14} />
           </div>
-          
+
           <button className="top-bar-btn" onClick={() => setShowPanel(!showPanel)}>
             <ChevronDown size={14} style={{ transform: showPanel ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 0.3s' }} />
             {showPanel ? 'Hide' : 'Show'}
@@ -259,8 +259,8 @@ function App() {
 
           <div className="toolbar-separator" style={{ height: 16, margin: '0 4px' }} />
 
-          <button 
-            className={`top-bar-btn ${isGuideMode ? 'active' : ''}`} 
+          <button
+            className={`top-bar-btn ${isGuideMode ? 'active' : ''}`}
             onClick={() => setIsGuideMode(!isGuideMode)}
             style={{ color: isGuideMode ? '#3b82f6' : '#fff' }}
           >
@@ -272,7 +272,7 @@ function App() {
         {/* Main Panel */}
         <AnimatePresence>
           {showPanel && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: -10, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.98 }}
@@ -311,19 +311,19 @@ function App() {
               </div>
 
               <div className="input-container">
-                <input 
-                  type="text" 
-                  className="input-field" 
+                <input
+                  type="text"
+                  className="input-field"
                   placeholder={isGuideMode ? "How do I..." : "Ask about your screen..."}
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && (isGuideMode ? handleGuideSearch() : handleAssist())}
                 />
-                
+
                 <button className="smart-btn" onClick={handleSmart}>
                   <Zap size={14} /> Smart
                 </button>
-                
+
                 <button className="play-btn" onClick={isGuideMode ? handleGuideSearch : handleAssist}>
                   <Play size={14} fill="currentColor" />
                 </button>
