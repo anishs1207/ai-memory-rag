@@ -1,34 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  Play,
-  ChevronDown,
-  BrainCircuit,
-  Sparkles,
-  MessageSquare,
-  RefreshCw,
-  Zap,
-  Navigation,
-  Search,
-  Globe,
-  EyeOff,
-  ShieldAlert,
-  ShieldCheck,
-  Camera,
-  Trash2,
-  MousePointer,
-  SlidersHorizontal,
-  Minimize2,
-  Maximize2,
-  ArrowLeft,
-  ArrowRight,
-  Loader,
-  Mic
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import './App.css';
-import { MarkdownRenderer } from './components/MarkdownRenderer';
+import { GuideArrow } from './components/GuideArrow';
+import { TopControlBar } from './components/TopControlBar';
+import { AssistantPanel } from './components/AssistantPanel';
+import { AIHereBrowser, type BrowserStep } from './components/AIHereBrowser';
+import type { ExecutionLog } from './components/VoiceActionPanel';
 
-
+/**
+ * App is the root container of Inqora's blinky client application.
+ * It manages central states (window sizing, transparency, Electron layout modes,
+ * speech engines, and screenshot caches) and orchestrates the user query sub-router.
+ */
 function App() {
   // --- STATE DECLARATIONS ---
   const [showPanel, setShowPanel] = useState(true);
@@ -40,8 +22,8 @@ function App() {
   const [isAiLoading, setIsAiLoading] = useState(false);
 
   // --- NEW FEATURES STATES ---
-  // Window layouts: 'toolbar' (compact bar), 'panel' (main dashboard), 'stealth' (overlay text), 'heyclicky' (webview portal)
-  const [windowMode, setWindowMode] = useState<'toolbar' | 'panel' | 'stealth' | 'heyclicky'>('panel');
+  // Window layouts: 'toolbar' (compact bar), 'panel' (main dashboard), 'stealth' (overlay text), 'aihere' (agent browser)
+  const [windowMode, setWindowMode] = useState<'toolbar' | 'panel' | 'stealth' | 'aihere'>('panel');
   // Transparency value linked to CSS --bg-opacity variable (0.15 to 0.95)
   const [bgOpacity, setBgOpacity] = useState<number>(0.75);
   // Pointer pass-through state (when true, clicks ignore Electron window outside active hovering)
@@ -54,25 +36,20 @@ function App() {
   const [capturedScreenshot, setCapturedScreenshot] = useState<string | null>(null);
   // Auto-take screenshot right before sending to LLM
   const [autoAttachScreenshot, setAutoAttachScreenshot] = useState<boolean>(true);
-  // Embedded HeyClicky loading state
+  // Embedded AI Here browser loading state
   const [webviewLoading, setWebviewLoading] = useState<boolean>(true);
 
-  // Browser navigation state for HeyClicky webview
+  // Browser navigation state for AI Here webview
   const [canGoBack, setCanGoBack] = useState<boolean>(false);
   const [canGoForward, setCanGoForward] = useState<boolean>(false);
-  const [currentUrl, setCurrentUrl] = useState<string>("https://www.heyclicky.com/");
+  const [currentUrl, setCurrentUrl] = useState<string>("https://www.google.com/");
 
-  // Cluely-style voice overlay sub-mode: 'cly' (custom overlay) or 'webview' (embedded heyclicky.com portal)
-  const [clickySubMode, setClickySubMode] = useState<'cly' | 'webview'>('cly');
   // State for recording system application execution outcomes
-  interface ExecutionLog {
-    command: string;
-    timestamp: string;
-    status: 'success' | 'failed';
-    details: string;
-  }
   const [executionLogs, setExecutionLogs] = useState<ExecutionLog[]>([]);
-  // Status state of Clicky overlay ("Idle", "Listening...", "Executing...", etc.)
+  const [browserSteps, setBrowserSteps] = useState<BrowserStep[]>([]);
+  const [aiHerePrompt, setAiHerePrompt] = useState<string>("");
+  const [aiHereStatus, setAiHereStatus] = useState<string>("Tell me what to search or browse.");
+  // Status state of voice overlay ("Idle", "Listening...", "Executing...", etc.)
   const [clickyStatus, setClickyStatus] = useState<string>("Idle");
 
   // Speech Recognition states
@@ -90,12 +67,12 @@ function App() {
   const recognitionRef = useRef<any>(null);
 
   // --- EFFECTS ---
-  // Apply transparency variable to stylesheet
+  // Apply transparency variable to stylesheet dynamically
   useEffect(() => {
     document.documentElement.style.setProperty('--bg-opacity', bgOpacity.toString());
   }, [bgOpacity]);
 
-  // Sync window size on mode changes
+  // Sync window size on mode changes through Electron ipcRenderer
   useEffect(() => {
     if (windowMode === 'toolbar') {
       window.electron.setWindowSize(800, 65);
@@ -103,22 +80,17 @@ function App() {
       window.electron.setWindowSize(460, 300);
     } else if (windowMode === 'panel') {
       window.electron.setWindowSize(800, 520);
-    } else if (windowMode === 'heyclicky') {
-      if (clickySubMode === 'cly') {
-        window.electron.setWindowSize(450, 520);
-      } else {
-        window.electron.setWindowSize(1000, 750);
-      }
+    } else if (windowMode === 'aihere') {
+      window.electron.setWindowSize(1000, 750);
     }
-  }, [windowMode, clickySubMode]);
-
+  }, [windowMode]);
 
   // Sync content protection to native Electron layer
   useEffect(() => {
     window.electron.setContentProtection(contentProtected);
   }, [contentProtected]);
 
-  // Sync mixed click-through pointer events on overlay windows
+  // Sync mixed click-through pointer events on overlay windows to ignore clicks
   useEffect(() => {
     if (!isGuideMode && !clickThrough) {
       window.electron.setIgnoreMouseEvents(false);
@@ -129,8 +101,8 @@ function App() {
       const targetElement = event.target as HTMLElement;
       // Re-enable clicks if mouse is over interactive panel, top-bar, or exit guide elements
       if (
-        targetElement.closest('.interactive-overlay') || 
-        targetElement.closest('.top-bar') || 
+        targetElement.closest('.interactive-overlay') ||
+        targetElement.closest('.top-bar') ||
         targetElement.closest('.assistant-panel') ||
         targetElement.closest('.clicky-container')
       ) {
@@ -164,15 +136,11 @@ function App() {
         window.electron.setWindowSize(460, 300);
       } else if (windowMode === 'panel') {
         window.electron.setWindowSize(800, 520);
-      } else if (windowMode === 'heyclicky') {
-        if (clickySubMode === 'cly') {
-          window.electron.setWindowSize(450, 520);
-        } else {
-          window.electron.setWindowSize(1000, 750);
-        }
+      } else if (windowMode === 'aihere') {
+        window.electron.setWindowSize(1000, 750);
       }
     }
-  }, [isGuideMode, windowMode, clickySubMode]);
+  }, [isGuideMode, windowMode]);
 
   // --- WEBVIEW NAVIGATION HANDLERS ---
   const handleWebviewLoadStop = () => {
@@ -211,6 +179,20 @@ function App() {
   const handleWebviewReload = () => {
     if (webviewRef.current) webviewRef.current.reload();
   };
+
+  const loadAiHereUrl = useCallback((targetUrl: string) => {
+    setCurrentUrl(targetUrl);
+    setWebviewLoading(true);
+    setWindowMode('aihere');
+
+    if (webviewRef.current) {
+      try {
+        webviewRef.current.loadURL(targetUrl);
+      } catch (err) {
+        console.error("AI Here browser load error:", err);
+      }
+    }
+  }, []);
 
   // --- AUDIO SYNTHESIS ---
   const speak = useCallback((text: string) => {
@@ -305,6 +287,76 @@ function App() {
     await handleAssist(promptText);
   };
 
+  const handleAiHereBrowse = useCallback(async (queryText: string) => {
+    const browserQuery = queryText.trim();
+    if (!browserQuery) return;
+
+    const actionTimestamp = new Date().toLocaleTimeString();
+    setWindowMode('aihere');
+    setAiHereStatus('Planning an in-app browser path...');
+    setIsAiLoading(true);
+
+    try {
+      const browserPrompt = `You are choosing the first page for an embedded browser agent.
+User request: "${browserQuery}"
+
+Return only compact JSON with these keys:
+{
+  "url": "a safe https URL to open first",
+  "summary": "one short sentence explaining what the browser will do"
+}
+
+Rules:
+- If the user gives a full URL, use it.
+- If the user asks to search, research, browse, or find something online, use a Google search URL.
+- Encode query parameters correctly.
+- Do not open external desktop browsers.`;
+
+      const responseText = await window.electron.gemmaChat(browserPrompt);
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      let targetUrl = `https://www.google.com/search?q=${encodeURIComponent(browserQuery)}`;
+      let summary = `Searching the web for "${browserQuery}".`;
+
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]) as { url?: string; summary?: string };
+        if (parsed.url && /^https:\/\//i.test(parsed.url)) {
+          targetUrl = parsed.url;
+        }
+        if (parsed.summary) {
+          summary = parsed.summary;
+        }
+      }
+
+      loadAiHereUrl(targetUrl);
+      setAiHereStatus(summary);
+      setBrowserSteps((prevSteps) => [
+        {
+          query: browserQuery,
+          timestamp: actionTimestamp,
+          targetUrl,
+          summary
+        },
+        ...prevSteps
+      ]);
+    } catch (err) {
+      console.error('AI Here browse planning failed:', err);
+      const fallbackUrl = `https://www.google.com/search?q=${encodeURIComponent(browserQuery)}`;
+      loadAiHereUrl(fallbackUrl);
+      setAiHereStatus(`Searching the web for "${browserQuery}".`);
+      setBrowserSteps((prevSteps) => [
+        {
+          query: browserQuery,
+          timestamp: actionTimestamp,
+          targetUrl: fallbackUrl,
+          summary: 'Loaded a fallback web search.'
+        },
+        ...prevSteps
+      ]);
+    } finally {
+      setIsAiLoading(false);
+    }
+  }, [loadAiHereUrl]);
+
   // --- AUTOMATED WINDOWS ACTIONS ---
   // Generates and runs PowerShell scripts to automate multi-step applications controls
   const handleAutomation = useCallback(async (queryText: string) => {
@@ -318,8 +370,8 @@ Generate a clean and safe Windows PowerShell script to accomplish this task.
 
 Guidelines:
 1. Opening applications:
-   - For web searches or URLs: Start-Process "chrome.exe" "https://www.google.com/search?q=query_text"
    - For other tools: Start-Process "notepad.exe", Start-Process "calc.exe", Start-Process "explorer.exe", Start-Process "cmd.exe", Start-Process "powershell.exe".
+   - Do not open websites, Chrome, Edge, or external desktop browsers for web searches. Those are handled by Inqora AI Here inside the app.
 2. Application window interaction:
    - Always add a short delay to let the app load: Start-Sleep -Milliseconds 800
    - Create a Wscript.Shell COM object:
@@ -436,17 +488,20 @@ Example: "The Recycle Bin icon is at the top left. [4, 5]"`;
     try {
       const intentClassificationPrompt = `Classify this user's desktop assistant request: "${activeQuery}"
 Select exactly one category:
-- AUTOMATION: The user wants to open/launch an app and do something, search, type text, or run automated desktop keyboard/mouse interactions (e.g., "open chrome and search cat videos", "open notepad and type hello", "run calc and do 5+5").
+- BROWSER: The user wants to search, research, browse, open a URL, create a browser, find online results, or use the web (e.g., "open a browser and search cat videos", "search web for GST updates", "go to https://example.com").
+- AUTOMATION: The user wants to open/launch a local desktop app and do something, type text, or run automated desktop keyboard/mouse interactions (e.g., "open notepad and type hello", "run calc and do 5+5").
 - GUIDANCE: The user wants to locate, find, click, or see a pointing direction to a visual UI element, button, window, or icon on their current desktop (e.g., "where is the recycle bin", "how do I click settings", "point to the file menu", "where is Chrome").
 - CONVERSATION: A general chat question, reflection, help, welcome greeting, or non-automation query (e.g., "what is the capital of France?", "explain photosynthesis", "who are you").
 
-Respond with ONLY one word: AUTOMATION, GUIDANCE, or CONVERSATION. Do not write punctuation, markdown, or any other explanations.`;
+Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do not write punctuation, markdown, or any other explanations.`;
 
       const classificationResult = await window.electron.gemmaChat(intentClassificationPrompt);
       const classifiedIntent = classificationResult.trim().toUpperCase();
       console.log('Query intent classified as:', classifiedIntent);
 
-      if (classifiedIntent.includes('AUTOMATION')) {
+      if (classifiedIntent.includes('BROWSER')) {
+        await handleAiHereBrowse(activeQuery);
+      } else if (classifiedIntent.includes('AUTOMATION')) {
         await handleAutomation(activeQuery);
       } else if (classifiedIntent.includes('GUIDANCE')) {
         setIsGuideMode(true);
@@ -461,14 +516,12 @@ Respond with ONLY one word: AUTOMATION, GUIDANCE, or CONVERSATION. Do not write 
       setIsAiLoading(false);
       setClickyStatus('Idle');
     }
-  }, [inputValue, handleAutomation, handleGuidance, handleAssist]);
+  }, [inputValue, handleAiHereBrowse, handleAutomation, handleGuidance, handleAssist]);
 
   // Voice command processor wrapping standard input submitter
   const handleSpeechInput = useCallback((speechText: string) => {
     handleQuerySubmit(speechText);
   }, [handleQuerySubmit]);
-
-
 
   // Speech Recognition Web API configuration
   useEffect(() => {
@@ -482,14 +535,14 @@ Respond with ONLY one word: AUTOMATION, GUIDANCE, or CONVERSATION. Do not write 
 
       rec.onstart = () => {
         setIsListening(true);
-        if (windowMode === 'heyclicky') {
+        if (windowMode === 'aihere') {
           setClickyStatus('Listening...');
         }
       };
 
       rec.onend = () => {
         setIsListening(false);
-        if (windowMode === 'heyclicky') {
+        if (windowMode === 'aihere') {
           setClickyStatus('Idle');
         }
       };
@@ -498,7 +551,7 @@ Respond with ONLY one word: AUTOMATION, GUIDANCE, or CONVERSATION. Do not write 
       rec.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error);
         setIsListening(false);
-        if (windowMode === 'heyclicky') {
+        if (windowMode === 'aihere') {
           setClickyStatus('Idle');
         }
       };
@@ -527,7 +580,6 @@ Respond with ONLY one word: AUTOMATION, GUIDANCE, or CONVERSATION. Do not write 
       }
     }
   };
-
 
   // --- INITIALIZATION ---
   useEffect(() => {
@@ -589,56 +641,13 @@ Respond with ONLY one word: AUTOMATION, GUIDANCE, or CONVERSATION. Do not write 
   return (
     <div className={`app-container ${isGuideMode ? 'guide-active' : ''} mode-${windowMode}`}>
       {/* Guide Mode Arrow Overlay */}
-      <AnimatePresence>
-        {isGuideMode && arrowPos.x !== -100 && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{
-              opacity: 1,
-              scale: 1,
-              x: arrowPos.x,
-              y: arrowPos.y,
-              rotate: -15
-            }}
-            transition={{ type: "spring", stiffness: 100, damping: 20 }}
-            exit={{ opacity: 0, scale: 0 }}
-            className="guide-arrow"
-          >
-            <div className="guide-arrow-glow" />
-            <svg
-              className="guide-arrow-svg"
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path d="M7 2l12 10-12 10V2z" />
-            </svg>
-
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 30 }}
-              className="guide-voice-bubble"
-            >
-              <MarkdownRenderer content={guideText} />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {isGuideMode && (
-        <button
-          className="interactive-overlay exit-guide-btn"
-          onClick={() => {
-            setIsGuideMode(false);
-            setArrowPos({ x: -100, y: -100 });
-          }}
-          title="Exit Guide Mode and restore window size"
-        >
-          <Minimize2 size={13} style={{ marginRight: 6 }} />
-          Exit Guide Mode
-        </button>
-      )}
+      <GuideArrow
+        isGuideMode={isGuideMode}
+        arrowPos={arrowPos}
+        guideText={guideText}
+        setIsGuideMode={setIsGuideMode}
+        setArrowPos={setArrowPos}
+      />
 
       <div
         className="window-wrapper"
@@ -646,429 +655,71 @@ Respond with ONLY one word: AUTOMATION, GUIDANCE, or CONVERSATION. Do not write 
         onMouseLeave={handleMouseLeave}
       >
         {/* Top Control Bar */}
-        <div className="top-bar">
-          <div className="top-bar-logo">
-            <BrainCircuit size={15} />
-            {windowMode !== 'stealth' && <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700 }}>INQORA</span>}
-          </div>
-
-          <div className="toolbar-separator" />
-
-          {/* Navigation Tabs */}
-          <div className="nav-tabs">
-            <button
-              className={`nav-tab-btn ${activeTab === 'assist' && windowMode !== 'heyclicky' ? 'active' : ''}`}
-              onClick={() => { setActiveTab('assist'); setWindowMode('panel'); }}
-              title="Assistant Panel"
-            >
-              <MessageSquare size={13} />
-              {windowMode !== 'stealth' && <span>Assist</span>}
-            </button>
-            <button
-              className={`nav-tab-btn ${activeTab === 'search' && windowMode !== 'heyclicky' ? 'active' : ''}`}
-              onClick={() => { setActiveTab('search'); setWindowMode('panel'); }}
-              title="Meeting Search Console"
-            >
-              <Search size={13} />
-              {windowMode !== 'stealth' && <span>Search</span>}
-            </button>
-            <button
-              className={`nav-tab-btn ${windowMode === 'heyclicky' ? 'active' : ''}`}
-              onClick={() => setWindowMode('heyclicky')}
-              title="HeyClicky Web Companion"
-            >
-              <Globe size={13} />
-              {windowMode !== 'stealth' && <span>Clicky</span>}
-            </button>
-          </div>
-
-          <div className="toolbar-separator" />
-
-          {/* Layout Mode Controls */}
-          <div style={{ display: 'flex', gap: 2 }}>
-            <button
-              className={`control-icon-btn ${windowMode === 'toolbar' ? 'active' : ''}`}
-              onClick={() => setWindowMode('toolbar')}
-              title="Toolbar Mode"
-            >
-              <Minimize2 size={13} />
-            </button>
-            <button
-              className={`control-icon-btn ${windowMode === 'stealth' ? 'active' : ''}`}
-              onClick={() => setWindowMode('stealth')}
-              title="Stealth Mode (Overlay text only)"
-            >
-              <EyeOff size={13} />
-            </button>
-            <button
-              className={`control-icon-btn ${windowMode === 'panel' ? 'active' : ''}`}
-              onClick={() => setWindowMode('panel')}
-              title="Standard Panel Mode"
-            >
-              <Maximize2 size={13} />
-            </button>
-          </div>
-
-          <div className="toolbar-separator" />
-
-          {/* Stealth & Accessibility Settings */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            {/* Click-Through Toggle */}
-            <button
-              className={`control-icon-btn ${clickThrough ? 'active warning' : ''}`}
-              onClick={() => setClickThrough(!clickThrough)}
-              title={clickThrough ? "Click-Through Enabled (Clicks pass through outside header)" : "Enable Click-Through"}
-            >
-              <MousePointer size={13} />
-            </button>
-
-            {/* Content protection Toggle (screen share invisibility) */}
-            <button
-              className={`control-icon-btn ${contentProtected ? 'active success' : ''}`}
-              onClick={() => setContentProtected(!contentProtected)}
-              title={contentProtected ? "Hidden from Screen Share (Invisible overlay active)" : "Hide from Screen Share"}
-            >
-              {contentProtected ? <ShieldCheck size={13} /> : <ShieldAlert size={13} />}
-            </button>
-
-            {/* Live opacity adjustments */}
-            <div className="opacity-slider-container">
-              <SlidersHorizontal size={12} />
-              <input
-                type="range"
-                min="0.15"
-                max="0.95"
-                step="0.05"
-                value={bgOpacity}
-                onChange={(e) => setBgOpacity(parseFloat(e.target.value))}
-                className="opacity-slider"
-                title={`Transparency: ${Math.round((1 - bgOpacity) * 100)}%`}
-              />
-            </div>
-          </div>
-
-          {/* Simple search bar inside top-bar in compact mode */}
-          {windowMode === 'toolbar' && (
-            <div className="toolbar-input-wrapper">
-              <input
-                type="text"
-                className="toolbar-input"
-                placeholder="Ask Inqora about screen..."
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleQuerySubmit()}
-              />
-              <button className="toolbar-send-btn" onClick={() => handleQuerySubmit()}>
-                <Play size={8} fill="currentColor" />
-              </button>
-            </div>
-          )}
-
-          {/* Hide/Show Panel Toggle */}
-          {windowMode !== 'toolbar' && windowMode !== 'heyclicky' && (
-            <button className="top-bar-btn" onClick={() => setShowPanel(!showPanel)}>
-              <ChevronDown size={12} style={{ transform: showPanel ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 0.3s' }} />
-              {showPanel ? 'Hide' : 'Show'}
-            </button>
-          )}
-        </div>
+        <TopControlBar
+          windowMode={windowMode}
+          setWindowMode={setWindowMode}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          clickThrough={clickThrough}
+          setClickThrough={setClickThrough}
+          contentProtected={contentProtected}
+          setContentProtected={setContentProtected}
+          bgOpacity={bgOpacity}
+          setBgOpacity={setBgOpacity}
+          inputValue={inputValue}
+          setInputValue={setInputValue}
+          handleQuerySubmit={handleQuerySubmit}
+          showPanel={showPanel}
+          setShowPanel={setShowPanel}
+        />
 
         {/* 1. Main Assistant & Search Panels */}
-        {windowMode !== 'toolbar' && windowMode !== 'heyclicky' && (
-          <AnimatePresence>
-            {showPanel && (
-              <motion.div
-                initial={{ opacity: 0, y: -10, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -10, scale: 0.98 }}
-                className="assistant-panel"
-              >
-                {/* Visual Screenshot Indicator in Main Panel header */}
-                <div className="panel-header">
-                  <div className="panel-title">
-                    {activeTab === 'search' ? <Search size={14} /> : <Sparkles size={14} />}
-                    <span>{activeTab === 'search' ? 'Meeting Search Console' : 'Context Assistant'}</span>
-                  </div>
-                  <button className="pill-btn" onClick={takeManualScreenshot}>
-                    <Camera size={12} style={{ marginRight: 4 }} />
-                    Capture Context
-                  </button>
-                </div>
-
-                {/* Main AI Response display */}
-                <div className="content-block">
-                  {isAiLoading ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, opacity: 0.7 }}>
-                      <Loader className="spinner" size={14} />
-                      <div className="ai-cursor" /> {isGuideMode ? "Locating elements..." : "Thinking..."}
-                    </div>
-                  ) : isGuideMode ? (
-                    <p style={{ margin: 0 }}>“Guide Mode Active. Ask me how to do anything on screen.”</p>
-                  ) : (
-                    <MarkdownRenderer content={aiResponse} />
-                  )}
-                </div>
-
-                {/* Sub Action Tabs */}
-                {activeTab === 'assist' && (
-                  <div className="action-row">
-                    <div className={`action-item ${!isGuideMode ? 'active' : ''}`} onClick={() => setIsGuideMode(false)}>
-                      <Sparkles size={12} /> Assist
-                    </div>
-                    <div className="action-dot" />
-                    <div className={`action-item ${isGuideMode ? 'active' : ''}`} onClick={() => setIsGuideMode(true)}>
-                      <Navigation size={12} /> Guide Me
-                    </div>
-                    <div className="action-dot" />
-                    <div className="action-item" onClick={() => handleTemplateClick("Suggest 3 followup questions I can ask.")}>
-                      <MessageSquare size={12} /> Followups
-                    </div>
-                  </div>
-                )}
-
-                {/* Sales & Meeting Quick Prompts (only in Search Console) */}
-                {activeTab === 'search' && (
-                  <div className="search-tab-content">
-                    <span style={{ fontSize: '11px', color: 'var(--text-dim)', fontWeight: 600, display: 'block', marginBottom: 6 }}>SALES & MEETING TEMPLATES</span>
-                    <div className="search-templates">
-                      <button className="template-chip" onClick={() => handleTemplateClick("Explain the key term or metric on my screen.")}>
-                        <Zap size={10} color="var(--accent-purple)" /> Explain Metric
-                      </button>
-                      <button className="template-chip" onClick={() => handleTemplateClick("Give me a professional objection handler for what is visible on my screen.")}>
-                        <MessageSquare size={10} color="var(--accent-orange)" /> Objection Handler
-                      </button>
-                      <button className="template-chip" onClick={() => handleTemplateClick("Verify the claims and fact check what is on my screen.")}>
-                        <ShieldCheck size={10} color="var(--accent-green)" /> Fact Checker
-                      </button>
-                      <button className="template-chip" onClick={() => handleTemplateClick("List the visible action items and next steps.")}>
-                        <Play size={10} color="var(--accent-blue)" /> Extract Todo
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Screenshot preview banner */}
-                {capturedScreenshot && (
-                  <div className="screenshot-preview-container">
-                    <img src={capturedScreenshot} className="screenshot-thumbnail" alt="Capture Preview" />
-                    <div className="screenshot-info">
-                      <span className="screenshot-title"><Camera size={10} /> Active Screen Context</span>
-                      <span className="screenshot-desc">This snapshot will be passed to Gemini for screen awareness.</span>
-                    </div>
-                    <div className="screenshot-actions">
-                      <button className="screenshot-btn" onClick={takeManualScreenshot} title="Retake Screenshot">
-                        <RefreshCw size={12} />
-                      </button>
-                      <button className="screenshot-btn danger" onClick={clearScreenshot} title="Remove Screen Context">
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Bottom Input Area */}
-                <div className="input-container">
-                  {speechSupported && (
-                    <button
-                      className={`chat-mic-btn ${isListening ? 'active' : ''}`}
-                      onClick={toggleListening}
-                      title={isListening ? "Listening... Click to stop" : "Speak to Inqora"}
-                      type="button"
-                    >
-                      <Mic size={14} />
-                    </button>
-                  )}
-                  <input
-                    type="text"
-                    className="input-field"
-                    placeholder={isGuideMode ? "How do I click..." : "Ask about your screen or search terms..."}
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleQuerySubmit()}
-                  />
-
-                  {/* Auto screenshot attachment checkbox */}
-                  <label className="auto-attach-label" title="Automatically capture screen when sending query">
-                    <input
-                      type="checkbox"
-                      className="auto-attach-checkbox"
-                      checked={autoAttachScreenshot}
-                      onChange={(e) => setAutoAttachScreenshot(e.target.checked)}
-                    />
-                    <span>Auto-Screen</span>
-                  </label>
-
-                  <button className="smart-btn" onClick={handleSmart} title="Queries Gemini Text Only">
-                    <Zap size={12} style={{ marginRight: 2 }} /> Smart
-                  </button>
-
-                  <button className="play-btn" onClick={() => handleQuerySubmit()}>
-                    <Play size={12} fill="currentColor" />
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+        {windowMode !== 'toolbar' && windowMode !== 'aihere' && (
+          <AssistantPanel
+            showPanel={showPanel}
+            activeTab={activeTab}
+            takeManualScreenshot={takeManualScreenshot}
+            isAiLoading={isAiLoading}
+            isGuideMode={isGuideMode}
+            aiResponse={aiResponse}
+            setIsGuideMode={setIsGuideMode}
+            handleTemplateClick={handleTemplateClick}
+            capturedScreenshot={capturedScreenshot}
+            clearScreenshot={clearScreenshot}
+            speechSupported={speechSupported}
+            isListening={isListening}
+            toggleListening={toggleListening}
+            inputValue={inputValue}
+            setInputValue={setInputValue}
+            handleQuerySubmit={handleQuerySubmit}
+            autoAttachScreenshot={autoAttachScreenshot}
+            setAutoAttachScreenshot={setAutoAttachScreenshot}
+            handleSmart={handleSmart}
+          />
         )}
 
-        {/* 2. Embedded HeyClicky Webview tab or Cluely-style voice companion overlay */}
-        {windowMode === 'heyclicky' && (
-          clickySubMode === 'cly' ? (
-            <div className="clicky-container" style={{ width: '100%', height: '100%' }}>
-              <div className="cly-dashboard">
-                {/* Dynamic voice pulsing orb in the center */}
-                <div className="cly-orb-section">
-                  <div className="cly-orb-wrapper">
-                    {/* Glowing outer wave lines */}
-                    <div className="cly-orb-pulse-ring" />
-                    <div className="cly-orb-pulse-ring" />
-                    <div className="cly-orb-pulse-ring" />
-                    
-                    {/* Active clickable microphone orb */}
-                    <div 
-                      className={`cly-orb ${isListening ? 'listening' : ''} ${clickyStatus.startsWith('Thinking') ? 'thinking' : ''} ${clickyStatus.startsWith('Executing') ? 'executing' : ''}`}
-                      onClick={toggleListening}
-                      title={isListening ? "Listening... Click to stop" : "Click to Speak"}
-                    >
-                      <Mic size={24} color="#fff" />
-                    </div>
-                  </div>
-
-                  {/* Visual companion status banner */}
-                  <div className={`cly-status-badge ${isListening ? 'listening' : ''} ${clickyStatus.startsWith('Thinking') ? 'thinking' : ''} ${clickyStatus.startsWith('Executing') ? 'executing' : ''}`}>
-                    {clickyStatus}
-                  </div>
-                </div>
-
-                {/* Glassmorphic command action execution log */}
-                <div className="cly-log-panel">
-                  <div className="cly-log-header">Voice Action History</div>
-                  <div className="cly-log-list">
-                    {executionLogs.length === 0 ? (
-                      <div className="cly-log-empty">
-                        No actions triggered yet. Ask "open Notepad" or "open Chrome" to try.
-                      </div>
-                    ) : (
-                      executionLogs.map((log, idx) => (
-                        <div className="cly-log-item" key={idx}>
-                          <div className="cly-log-left">
-                            <span className="cly-log-timestamp">{log.timestamp}</span>
-                            <span className="cly-log-command">“{log.command}”</span>
-                          </div>
-                          <span className={`cly-log-status ${log.status}`}>
-                            {log.status === 'success' ? 'Executed' : 'Failed'}
-                          </span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* Compact command manual keyboard text fallback bar */}
-                <div className="input-container" style={{ width: '100%' }}>
-                  <input
-                    type="text"
-                    className="input-field"
-                    placeholder="Type a command (e.g. open chrome and search maps)..."
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && inputValue) {
-                        handleQuerySubmit(inputValue);
-                      }
-                    }}
-                  />
-                  <button 
-                    className="play-btn" 
-                    onClick={() => {
-                      if (inputValue) {
-                        handleQuerySubmit(inputValue);
-                      }
-                    }}
-                  >
-                    <Play size={12} fill="currentColor" />
-                  </button>
-                </div>
-
-                {/* Voice companion footer controls */}
-                <div className="cly-footer-row">
-                  <button 
-                    className={`cly-mic-btn ${isListening ? 'active' : ''}`}
-                    onClick={toggleListening}
-                    title={isListening ? "Stop listening" : "Start Speech-to-Text"}
-                  >
-                    <Mic size={14} />
-                  </button>
-
-                  <button 
-                    className="cly-companion-toggle"
-                    onClick={() => setClickySubMode('webview')}
-                  >
-                    <Globe size={12} /> Switch to Web Portal
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="clicky-container">
-              {/* Custom browser navigation controls for embedded webview */}
-              <div className="clicky-nav-bar">
-                <button
-                  className="clicky-nav-btn"
-                  onClick={handleWebviewBack}
-                  disabled={!canGoBack}
-                  title="Go Back"
-                >
-                  <ArrowLeft size={14} />
-                </button>
-                <button
-                  className="clicky-nav-btn"
-                  onClick={handleWebviewForward}
-                  disabled={!canGoForward}
-                  title="Go Forward"
-                >
-                  <ArrowRight size={14} />
-                </button>
-                <button
-                  className="clicky-nav-btn"
-                  onClick={handleWebviewReload}
-                  title="Reload Page"
-                >
-                  <RefreshCw size={13} />
-                </button>
-
-                <div className="clicky-address-bar">{currentUrl}</div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button 
-                    className="cly-companion-toggle"
-                    onClick={() => setClickySubMode('cly')}
-                    style={{ marginRight: 8 }}
-                  >
-                    <Mic size={10} /> Voice Companion
-                  </button>
-                  <span style={{ fontSize: '10px', color: 'var(--text-dim)', fontWeight: 600 }}>HeyClicky Browser Companion</span>
-                  <Globe size={14} color="var(--accent-purple)" />
-                </div>
-              </div>
-
-              {/* Webview guest element */}
-              <div className="clicky-webview-wrapper">
-                <webview
-                  ref={webviewRef}
-                  src="https://www.heyclicky.com/"
-                  className="clicky-webview"
-                />
-
-                {webviewLoading && (
-                  <div className="webview-loader">
-                    <Loader className="spinner" size={24} />
-                    <span>Securely loading HeyClicky...</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )
+        {/* 2. Embedded AI Here browser and voice companion overlay */}
+        {windowMode === 'aihere' && (
+          <AIHereBrowser
+            webviewRef={webviewRef}
+            currentUrl={currentUrl}
+            canGoBack={canGoBack}
+            canGoForward={canGoForward}
+            handleWebviewBack={handleWebviewBack}
+            handleWebviewForward={handleWebviewForward}
+            handleWebviewReload={handleWebviewReload}
+            aiHerePrompt={aiHerePrompt}
+            setAiHerePrompt={setAiHerePrompt}
+            handleAiHereBrowse={handleAiHereBrowse}
+            speechSupported={speechSupported}
+            isListening={isListening}
+            toggleListening={toggleListening}
+            webviewLoading={webviewLoading}
+            aiHereStatus={aiHereStatus}
+            browserSteps={browserSteps}
+            executionLogs={executionLogs}
+            clickyStatus={clickyStatus}
+          />
         )}
       </div>
     </div>

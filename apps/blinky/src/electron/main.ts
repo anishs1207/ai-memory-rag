@@ -27,7 +27,7 @@ function createWindow() {
       preload: getPreloadPath(),
       nodeIntegration: false,
       contextIsolation: true,
-      webviewTag: true, // Enable <webview> tag support for embedding heyclicky.com
+      webviewTag: true, // Enable <webview> tag support for the AI Here browser
     },
   });
 

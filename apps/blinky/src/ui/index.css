@@ -599,7 +599,7 @@ body {
   font-size: 12px;
 }
 
-/* HeyClicky Webview tab container */
+/* AI Here browser container */
 .clicky-container {
   width: 960px;
   height: 640px;
@@ -685,6 +685,107 @@ body {
   gap: 12px;
   color: var(--text-dim);
   font-size: 12px;
+}
+
+.aihere-container {
+  width: 1000px;
+  height: 680px;
+  background: rgba(10, 12, 16, 0.96);
+}
+
+.aihere-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.aihere-command-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.aihere-workspace {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+}
+
+.aihere-browser-panel {
+  min-width: 0;
+  min-height: 0;
+  background: #fff;
+}
+
+.aihere-side-panel {
+  min-width: 0;
+  min-height: 0;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: auto;
+}
+
+.aihere-side-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.aihere-status-text {
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.aihere-step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.aihere-step {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.aihere-step strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.aihere-agent-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .spinner {
@@ -1267,5 +1368,3 @@ body {
   transform: translateX(-50%) scale(1.05);
   box-shadow: 0 8px 32px rgba(239, 68, 68, 0.2);
 }
-
-
