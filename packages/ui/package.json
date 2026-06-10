@@ -24,6 +24,7 @@
     "react": "^19"
   },
   "devDependencies": {
+    "@parcel/watcher": "2.5.4",
     "@repo/eslint-config": "*",
     "@repo/tailwind-config": "*",
     "@repo/typescript-config": "*",
@@ -32,5 +33,20 @@
     "eslint": "^9.39.1",
     "tailwindcss": "^4.1.5",
     "typescript": "5.9.2"
+  },
+  "optionalDependencies": {
+    "@parcel/watcher-android-arm64": "2.5.4",
+    "@parcel/watcher-darwin-arm64": "2.5.4",
+    "@parcel/watcher-darwin-x64": "2.5.4",
+    "@parcel/watcher-freebsd-x64": "2.5.4",
+    "@parcel/watcher-linux-arm-glibc": "2.5.4",
+    "@parcel/watcher-linux-arm-musl": "2.5.4",
+    "@parcel/watcher-linux-arm64-glibc": "2.5.4",
+    "@parcel/watcher-linux-arm64-musl": "2.5.4",
+    "@parcel/watcher-linux-x64-glibc": "2.5.4",
+    "@parcel/watcher-linux-x64-musl": "2.5.4",
+    "@parcel/watcher-win32-arm64": "2.5.4",
+    "@parcel/watcher-win32-ia32": "2.5.4",
+    "@parcel/watcher-win32-x64": "2.5.4"
   }
 }

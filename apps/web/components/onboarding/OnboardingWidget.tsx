@@ -4,21 +4,18 @@ import React, { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  HelpCircle, 
   X, 
   Send, 
   ArrowRight, 
-  ArrowLeft, 
   Sparkles, 
   Play, 
   Compass, 
-  Layers, 
   ChevronRight,
-  Maximize2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { driver } from "driver.js";
+import "driver.js/dist/driver.css";
 
 // --- Tour Configuration Types ---
 type TourStep = {
@@ -156,12 +153,14 @@ export default function OnboardingWidget() {
   const [query, setQuery] = useState("");
   const [activeTour, setActiveTour] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
-  const [elementBounds, setElementBounds] = useState<DOMRect | null>(null);
   const [customStyle, setCustomStyle] = useState({
     theme: "glass", // glass | neon | dark
     color: "#3b82f6", // default blue
     position: "right", // left | right
   });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const driverRef = useRef<any>(null);
 
   // Load configuration from localStorage
   useEffect(() => {
@@ -178,7 +177,19 @@ export default function OnboardingWidget() {
     }
   }, []);
 
-  // Save tour status
+  // Sync state changes on local storage event for dynamic updates on the config page
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const savedConfig = localStorage.getItem("onboarding_widget_config");
+      if (savedConfig) {
+        setCustomStyle(JSON.parse(savedConfig));
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
+
+  // Save active tour status to localStorage
   const saveTourState = (tour: string | null, step: number) => {
     if (tour) {
       localStorage.setItem("active_tour", tour);
@@ -206,43 +217,132 @@ export default function OnboardingWidget() {
   const stopTour = () => {
     setActiveTour(null);
     setStepIndex(0);
-    setElementBounds(null);
     saveTourState(null, 0);
+    if (driverRef.current) {
+      driverRef.current.destroy();
+      driverRef.current = null;
+    }
   };
 
-  const nextStep = () => {
+  const handleNextStep = () => {
     if (!activeTour) return;
     const tour = TOURS[activeTour];
     if (!tour) return;
+
     if (stepIndex < tour.steps.length - 1) {
       const nextIdx = stepIndex + 1;
-      setStepIndex(nextIdx);
-      saveTourState(activeTour, nextIdx);
-      
       const nextStepObj = tour.steps[nextIdx];
       if (nextStepObj && pathname !== nextStepObj.route) {
-        router.push(nextStepObj.route);
+        if (driverRef.current) {
+          driverRef.current.destroy();
+          driverRef.current = null;
+        }
       }
+      setStepIndex(nextIdx);
+      saveTourState(activeTour, nextIdx);
     } else {
       stopTour();
     }
   };
 
-  const prevStep = () => {
+  const handlePrevStep = () => {
     if (!activeTour) return;
     const tour = TOURS[activeTour];
     if (!tour) return;
+
     if (stepIndex > 0) {
       const prevIdx = stepIndex - 1;
-      setStepIndex(prevIdx);
-      saveTourState(activeTour, prevIdx);
-      
       const prevStepObj = tour.steps[prevIdx];
       if (prevStepObj && pathname !== prevStepObj.route) {
-        router.push(prevStepObj.route);
+        if (driverRef.current) {
+          driverRef.current.destroy();
+          driverRef.current = null;
+        }
       }
+      setStepIndex(prevIdx);
+      saveTourState(activeTour, prevIdx);
     }
   };
+
+  // Synchronize driver.js with current activeTour, stepIndex, and pathname
+  useEffect(() => {
+    if (!activeTour) {
+      if (driverRef.current) {
+        driverRef.current.destroy();
+        driverRef.current = null;
+      }
+      return;
+    }
+
+    const tour = TOURS[activeTour];
+    if (!tour) return;
+
+    const currentStep = tour.steps[stepIndex];
+    if (!currentStep) return;
+
+    // If step is on a different route, navigate first
+    if (pathname !== currentStep.route) {
+      if (driverRef.current) {
+        driverRef.current.destroy();
+        driverRef.current = null;
+      }
+      router.push(currentStep.route);
+      return;
+    }
+
+    // Wait for target selector to appear in DOM
+    const interval = setInterval(() => {
+      const el = document.querySelector(currentStep.selector);
+      if (el) {
+        clearInterval(interval);
+
+        if (!driverRef.current) {
+          driverRef.current = driver({
+            showProgress: true,
+            allowClose: true,
+            overlayColor: "rgba(11, 15, 25, 0.75)",
+            className: "driverjs-theme",
+            onNextClick: () => {
+              handleNextStep();
+            },
+            onPrevClick: () => {
+              handlePrevStep();
+            },
+            onCloseClick: () => {
+              stopTour();
+            },
+            onDestroyed: () => {
+              // Reset if closed via escape/clicking overlay
+              if (localStorage.getItem("active_tour")) {
+                stopTour();
+              }
+            }
+          });
+        }
+
+        const driverSteps = tour.steps.map((s, idx) => ({
+          element: s.selector,
+          popover: {
+            title: s.title,
+            description: s.description,
+            side: s.arrowPosition,
+            align: "start" as const,
+            nextBtnText: idx === tour.steps.length - 1 ? "Finish" : "Next →",
+            prevBtnText: "← Back",
+          }
+        }));
+
+        driverRef.current.setSteps(driverSteps);
+        
+        if (driverRef.current.getActiveIndex() !== stepIndex) {
+          driverRef.current.drive(stepIndex);
+        }
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTour, stepIndex, pathname]);
 
   // Perform Natural Query Intent Matching
   const handleSearch = (e: React.FormEvent) => {
@@ -250,7 +350,6 @@ export default function OnboardingWidget() {
     const cleanQuery = query.toLowerCase().trim();
     if (!cleanQuery) return;
 
-    // Intents matching
     if (
       cleanQuery.includes("chat") || 
       cleanQuery.includes("ai") || 
@@ -277,133 +376,11 @@ export default function OnboardingWidget() {
     ) {
       startTour("vault");
     } else {
-      // Fallback: search-like alert or default tour
-      alert("I matching system maps that request closely to the 'AI Cognitive Chat Tour'!");
+      alert("I matched that request closely to the 'AI Cognitive Chat Tour'!");
       startTour("chat");
     }
     setQuery("");
   };
-
-  // Track Target Element Bounds on route changes, scrolling, and resizing
-  useEffect(() => {
-    if (!activeTour) {
-      setElementBounds(null);
-      return;
-    }
-
-    const currentStep = TOURS[activeTour]?.steps[stepIndex];
-    if (!currentStep || pathname !== currentStep.route) {
-      setElementBounds(null);
-      return;
-    }
-
-    const updateBounds = () => {
-      const element = document.querySelector(currentStep.selector);
-      if (element) {
-        setElementBounds(element.getBoundingClientRect());
-      } else {
-        setElementBounds(null);
-      }
-    };
-
-    // Poll bounds since elements might load asynchronously
-    const interval = setInterval(updateBounds, 200);
-    window.addEventListener("resize", updateBounds);
-    window.addEventListener("scroll", updateBounds, { passive: true });
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("resize", updateBounds);
-      window.removeEventListener("scroll", updateBounds);
-    };
-  }, [activeTour, stepIndex, pathname]);
-
-  const currentStep = activeTour ? TOURS[activeTour]?.steps[stepIndex] : null;
-
-  // --- Dynamic Overlay Styles ---
-  const getOverlayStyles = () => {
-    if (!elementBounds || !currentStep) return { overlay: {}, arrow: {}, tooltip: {} };
-
-    const offset = 12; // Gap between arrow/tooltip and elements
-    const arrowSize = 8;
-    const scrollX = window.scrollX;
-    const scrollY = window.scrollY;
-
-    const elTop = elementBounds.top + scrollY;
-    const elLeft = elementBounds.left + scrollX;
-    const elWidth = elementBounds.width;
-    const elHeight = elementBounds.height;
-
-    let tooltipStyle: React.CSSProperties = {};
-    let arrowStyle: React.CSSProperties = {};
-
-    switch (currentStep.arrowPosition) {
-      case "bottom":
-        // Tooltip sits below the target element
-        tooltipStyle = {
-          top: `${elTop + elHeight + offset}px`,
-          left: `${elLeft + elWidth / 2}px`,
-          transform: "translateX(-50%)",
-        };
-        arrowStyle = {
-          top: `-${arrowSize}px`,
-          left: "50%",
-          transform: "translateX(-50%) rotate(180deg)",
-          borderWidth: `0 ${arrowSize}px ${arrowSize}px ${arrowSize}px`,
-          borderColor: `transparent transparent ${customStyle.color} transparent`,
-        };
-        break;
-      case "top":
-        // Tooltip sits above target element
-        tooltipStyle = {
-          top: `${elTop - offset}px`,
-          left: `${elLeft + elWidth / 2}px`,
-          transform: "translateX(-50%) translateY(-100%)",
-        };
-        arrowStyle = {
-          bottom: `-${arrowSize}px`,
-          left: "50%",
-          transform: "translateX(-50%)",
-          borderWidth: `${arrowSize}px ${arrowSize}px 0 ${arrowSize}px`,
-          borderColor: `${customStyle.color} transparent transparent transparent`,
-        };
-        break;
-      case "right":
-        // Tooltip sits to the right
-        tooltipStyle = {
-          top: `${elTop + elHeight / 2}px`,
-          left: `${elLeft + elWidth + offset}px`,
-          transform: "translateY(-50%)",
-        };
-        arrowStyle = {
-          left: `-${arrowSize}px`,
-          top: "50%",
-          transform: "translateY(-50%) rotate(90deg)",
-          borderWidth: `0 ${arrowSize}px ${arrowSize}px ${arrowSize}px`,
-          borderColor: `transparent transparent ${customStyle.color} transparent`,
-        };
-        break;
-      case "left":
-        // Tooltip sits to the left
-        tooltipStyle = {
-          top: `${elTop + elHeight / 2}px`,
-          left: `${elLeft - offset}px`,
-          transform: "translateX(-100%) translateY(-50%)",
-        };
-        arrowStyle = {
-          right: `-${arrowSize}px`,
-          top: "50%",
-          transform: "translateY(-50%) rotate(-90deg)",
-          borderWidth: `0 ${arrowSize}px ${arrowSize}px ${arrowSize}px`,
-          borderColor: `transparent transparent ${customStyle.color} transparent`,
-        };
-        break;
-    }
-
-    return { tooltipStyle, arrowStyle };
-  };
-
-  const { tooltipStyle, arrowStyle } = getOverlayStyles();
 
   return (
     <>
@@ -529,93 +506,6 @@ export default function OnboardingWidget() {
           </div>
         )}
       </AnimatePresence>
-
-      {/* Tour Step Overlay Arrow and Tooltip */}
-      {activeTour && currentStep && elementBounds && (
-        <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-[10000]">
-          {/* Neon Pulse Overlay around the element */}
-          <div 
-            className="fixed pointer-events-none border-2 rounded-lg transition-all duration-300"
-            style={{
-              top: `${elementBounds.top}px`,
-              left: `${elementBounds.left}px`,
-              width: `${elementBounds.width}px`,
-              height: `${elementBounds.height}px`,
-              borderColor: customStyle.color,
-              boxShadow: `0 0 0 9999px rgba(0, 0, 0, 0.45), 0 0 15px ${customStyle.color}, inset 0 0 10px ${customStyle.color}`,
-              zIndex: 9998,
-            }}
-          />
-
-          {/* Floating Tooltip Card */}
-          <div 
-            className="absolute pointer-events-auto z-[9999] transition-all duration-300 w-80 max-w-[90vw]"
-            style={tooltipStyle}
-          >
-            {/* Triangular arrow pointer */}
-            <div 
-              className="absolute w-0 h-0 border-solid pointer-events-none"
-              style={arrowStyle}
-            />
-
-            {/* Explanatory content card */}
-            <div 
-              style={{ borderLeftColor: customStyle.color }}
-              className="bg-slate-900 border-l-4 border border-slate-800 text-white rounded-xl shadow-2xl p-4 overflow-hidden"
-            >
-              <div className="flex items-start justify-between gap-3 mb-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    Step {stepIndex + 1} of {activeTour ? TOURS[activeTour]?.steps.length || 0 : 0}
-                  </span>
-                </div>
-                <button 
-                  onClick={stopTour} 
-                  className="opacity-50 hover:opacity-100 transition-opacity p-0.5 rounded-full hover:bg-white/10"
-                >
-                  <X className="size-3.5" />
-                </button>
-              </div>
-
-              <h4 className="text-sm font-bold text-white leading-tight">{currentStep.title}</h4>
-              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">{currentStep.description}</p>
-
-              {/* Navigation buttons */}
-              <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={prevStep}
-                  disabled={stepIndex === 0}
-                  className="h-7 text-xs px-2.5 hover:bg-white/5 disabled:opacity-40"
-                >
-                  <ArrowLeft className="size-3 mr-1" /> Back
-                </Button>
-
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={stopTour}
-                    className="h-7 text-xs px-2 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300"
-                  >
-                    End Tour
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={nextStep}
-                    style={{ backgroundColor: customStyle.color }}
-                    className="h-7 text-xs px-3 hover:brightness-110 font-medium"
-                  >
-                    {stepIndex === (activeTour ? TOURS[activeTour]?.steps.length || 1 : 1) - 1 ? "Finish" : "Next"} 
-                    <ArrowRight className="size-3 ml-1" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

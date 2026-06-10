@@ -441,3 +441,105 @@
     opacity: 1;
   }
 }
+
+/* Custom Driver.js styles to match Inqora's dark premium aesthetic */
+.driver-popover.driverjs-theme {
+  background-color: #090e1a !important; /* dark slate-950/90 */
+  color: #f8fafc !important;
+  border: 1px solid #1e293b !important; /* slate-800 */
+  border-radius: 16px !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+  padding: 18px !important;
+  font-family: inherit !important;
+}
+
+.driver-popover.driverjs-theme .driver-popover-title {
+  font-family: inherit !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  color: #ffffff !important;
+  margin-bottom: 6px !important;
+}
+
+.driver-popover.driverjs-theme .driver-popover-description {
+  font-family: inherit !important;
+  font-size: 11px !important;
+  color: #94a3b8 !important; /* slate-400 */
+  line-height: 1.6 !important;
+}
+
+.driver-popover.driverjs-theme .driver-popover-close-btn {
+  color: #64748b !important;
+  font-size: 18px !important;
+  top: 12px !important;
+  right: 12px !important;
+  transition: color 150ms ease !important;
+}
+
+.driver-popover.driverjs-theme .driver-popover-close-btn:hover {
+  color: #f8fafc !important;
+}
+
+.driver-popover.driverjs-theme .driver-popover-footer {
+  margin-top: 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.driver-popover.driverjs-theme .driver-popover-navigation-btns {
+  display: flex !important;
+  gap: 8px !important;
+}
+
+.driver-popover.driverjs-theme .driver-popover-next-btn {
+  background-color: #3b82f6 !important; /* primary blue */
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  border: none !important;
+  border-radius: 8px !important;
+  font-size: 11px !important;
+  padding: 6px 12px !important;
+  cursor: pointer !important;
+  transition: opacity 150ms ease, transform 100ms ease !important;
+  text-shadow: none !important;
+}
+
+.driver-popover.driverjs-theme .driver-popover-next-btn:hover {
+  opacity: 0.9 !important;
+}
+
+.driver-popover.driverjs-theme .driver-popover-prev-btn {
+  background-color: #1e293b !important; /* slate-800 */
+  color: #cbd5e1 !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+  font-size: 11px !important;
+  padding: 6px 12px !important;
+  cursor: pointer !important;
+  transition: background-color 150ms ease !important;
+  text-shadow: none !important;
+}
+
+.driver-popover.driverjs-theme .driver-popover-prev-btn:hover {
+  background-color: #334155 !important;
+}
+
+.driver-popover.driverjs-theme .driver-popover-progress-text {
+  color: #64748b !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+}
+
+.driver-popover.driverjs-theme .driver-popover-arrow-side-left {
+  border-left-color: #090e1a !important;
+}
+.driver-popover.driverjs-theme .driver-popover-arrow-side-right {
+  border-right-color: #090e1a !important;
+}
+.driver-popover.driverjs-theme .driver-popover-arrow-side-top {
+  border-top-color: #090e1a !important;
+}
+.driver-popover.driverjs-theme .driver-popover-arrow-side-bottom {
+  border-bottom-color: #090e1a !important;
+}
