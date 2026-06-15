@@ -3,7 +3,7 @@ import * as z from "zod";
 import express from "express";
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 const getWeather = tool(
     (input) => `It's always sunny in ${input.city}!`,
@@ -21,6 +21,10 @@ const agent = createAgent({
     tools: [getWeather],
 });
 
+// Expose a standard /health endpoint for the orchestrator to check readiness
+app.get("/health", (req, res) => {
+    return res.status(200).json({ status: "healthy" });
+});
 
 app.get("/invoke", async (req, res) => {
     const query = req.query;
@@ -39,8 +43,7 @@ app.get("/invoke", async (req, res) => {
 })
 
 app.listen(PORT, () => {
-    console.log("Weather Agent has started");
-
+    console.log(`Weather Agent has started on port ${PORT}`);
 })
 
 

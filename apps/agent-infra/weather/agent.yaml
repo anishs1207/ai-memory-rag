@@ -1,0 +1,10 @@
+name: weather-agent
+dir: .
+command: npm start
+replicas: 1
+minReplicas: 0
+maxReplicas: 3
+idleTimeout: 30s
+env:
+  - name: GEMINI_API_KEY
+    value: "mock-gemini-key"
