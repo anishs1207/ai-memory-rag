@@ -301,7 +301,7 @@ export default function OnboardingWidget() {
             showProgress: true,
             allowClose: true,
             overlayColor: "rgba(11, 15, 25, 0.75)",
-            className: "driverjs-theme",
+            popoverClass: "driverjs-theme",
             onNextClick: () => {
               handleNextStep();
             },

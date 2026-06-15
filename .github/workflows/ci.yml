@@ -22,7 +22,9 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci
+          npm install --no-save @tailwindcss/oxide-linux-x64-gnu
 
       - name: Build monorepo
         run: npm run build
