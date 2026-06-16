@@ -100,7 +100,7 @@ The control plane and reverse proxy will start listening at `http://localhost:80
 Submit a deployment request pointing to your `agent.yaml` path:
 
 ```bash
-curl.exe -X POST -H "Content-Type: application/json" -d '{"path": "./example/agent.yaml"}' http://localhost:8080/api/deploy
+curl.exe -X POST -H "Content-Type: application/json" -d '{"path": "./example/weather/agent.yaml"}' http://localhost:8080/api/deploy
 ```
 
 ---

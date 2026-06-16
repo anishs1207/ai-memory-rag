@@ -23,34 +23,85 @@ func main() {
 	// 1. Initialize the Port Allocator with a wide range of ports (10000 to 11000) for agent replicas.
 	portAllocator := NewPortAllocator(10000, 11000)
 
-	// 2. Initialize the Scheduler which manages the actual-versus-desired replica states.
-	scheduler := NewScheduler(portAllocator)
+	// --- NEW SUBSYSTEM INITIALIZATION ---
+	
+	// 2. Initialize simulated Node fleet
+	nodeManager := NewNodeManager()
 
-	// 3. Initialize the Job Queue with a buffer of 1000 enqueued tasks and 4 concurrent background worker threads.
+	// 3. Initialize Secrets Manager
+	secretsManager := NewSecretsManager()
+
+	// 4. Initialize State Store (will probe local Postgres & Redis)
+	stateStore := NewStateStore()
+
+	// 5. Initialize Observability Metrics Tracker
+	observability := NewObservabilityManager()
+
+	// 6. Initialize Agent Registry and simulated Marketplace
+	registry := NewAgentRegistry()
+	marketplace := NewAgentMarketplace()
+
+	// 7. Initialize the Scheduler which manages the actual-versus-desired replica states.
+	scheduler := NewScheduler(portAllocator, nodeManager, secretsManager)
+
+	// 8. Initialize the Job Queue with a buffer of 1000 enqueued tasks and 4 concurrent background worker threads.
 	jobQueue := NewJobQueue(scheduler, 1000, 4)
 
-	// 4. Initialize the HTTP Proxy Router and the Management API Server.
-	proxyHandler := NewProxyHandler(scheduler)
-	apiServer := NewAPIServer(scheduler, jobQueue, proxyHandler)
+	// 9. Initialize Event Bus
+	eventBus := NewEventBus(scheduler)
 
-	// 5. Start background routines.
+	// 10. Initialize Workflow Engine
+	workflowEngine := NewWorkflowEngine(jobQueue)
+
+	// 11. Initialize the HTTP Proxy Router and the Management API Server.
+	proxyHandler := NewProxyHandler(scheduler, observability)
+	apiServer := NewAPIServer(
+		scheduler,
+		jobQueue,
+		proxyHandler,
+		nodeManager,
+		secretsManager,
+		eventBus,
+		stateStore,
+		workflowEngine,
+		observability,
+		registry,
+		marketplace,
+	)
+
+	// --- START BACKGROUND ROUTINES ---
+	
 	// Monitor scale-to-zero for idle deployments.
 	scheduler.StartScaleToZeroMonitor(shutdownContext)
-	// Monitor queue depth for horizontal replica autoscaling.
-	scheduler.StartQueueAutoscaler(shutdownContext, jobQueue)
+	// Monitor multiple metrics (CPU, Memory, RPS, Tokens, Queue) for horizontal replica autoscaling.
+	scheduler.StartMetricsAutoscaler(shutdownContext, observability, jobQueue)
 	// Start async job processors.
 	jobQueue.Start(shutdownContext)
 
-	// 6. Instantiate ServeMux and register all API endpoint routes.
+	// 12. Instantiate ServeMux and register all API endpoint routes.
 	serveMux := http.NewServeMux()
 	apiServer.RegisterRoutes(serveMux)
 
+	// Wrap serveMux in a CORS middleware handler to allow local frontend access and preflight requests
+	corsHandler := http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.Header().Set("Access-Control-Allow-Origin", "*")
+		responseWriter.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		responseWriter.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		
+		// Immediately return with OK status if it is an OPTIONS preflight request
+		if request.Method == "OPTIONS" {
+			responseWriter.WriteHeader(http.StatusOK)
+			return
+		}
+		serveMux.ServeHTTP(responseWriter, request)
+	})
+
 	httpServer := &http.Server{
 		Addr:    ":8080",
-		Handler: serveMux,
+		Handler: corsHandler,
 	}
 
-	// 7. Start the API Server.
+	// 13. Start the API Server.
 	go func() {
 		fmt.Printf("[AgentOS] Server listening at http://localhost:8080\n")
 		err := httpServer.ListenAndServe()
@@ -60,21 +111,22 @@ func main() {
 		}
 	}()
 
-	// 8. Block execution until shutdown signal is received from the OS.
+	// 14. Block execution until shutdown signal is received from the OS.
 	<-shutdownContext.Done()
 	fmt.Println("\n[AgentOS] Shutdown signal intercepted. Initiating cleanup sequence...")
 
-	// 9. Shutdown the API server, allowing up to 5 seconds for existing requests to complete.
+	// 15. Shutdown the API server, allowing up to 5 seconds for existing requests to complete.
 	cleanupContext, cancelCleanup := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelCleanup()
-	
+
 	err := httpServer.Shutdown(cleanupContext)
 	if err != nil {
 		fmt.Printf("[AgentOS] Error shutting down API server: %v\n", err)
 	}
 
-	// 10. Forcefully terminate all running child process instances of deployed agents.
+	// 16. Forcefully terminate all running child process instances of deployed agents and free node resources.
 	scheduler.StopAll()
 
 	fmt.Println("[AgentOS] All processes terminated successfully. Shutdown complete.")
 }
+

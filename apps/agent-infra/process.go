@@ -28,6 +28,8 @@ type AgentInstance struct {
 	ID        string
 	AgentName string
 	Port      int
+	NodeID    string         // Scheduled worker node ID
+	Version   string         // Version of the running agent replica
 	Status    InstanceStatus
 	Cmd       *exec.Cmd
 	LogBuffer *bytes.Buffer
@@ -102,7 +104,7 @@ func (ai *AgentInstance) GetLogs() string {
 }
 
 // Start launches the agent process, pipes its console output, and monitors its readiness.
-func (ai *AgentInstance) Start(ctx context.Context, manifest *AgentManifest, portAllocator *PortAllocator) error {
+func (ai *AgentInstance) Start(ctx context.Context, manifest *AgentManifest, portAllocator *PortAllocator, secretsManager *SecretsManager) error {
 	ai.lock.Lock()
 	ai.StartedAt = time.Now()
 	ai.UpdatedAt = time.Now()
@@ -122,14 +124,31 @@ func (ai *AgentInstance) Start(ctx context.Context, manifest *AgentManifest, por
 	command := exec.CommandContext(ctx, shellProgram, shellArguments...)
 	command.Dir = manifest.ResolvedDir
 
-	// Setup environment variables, appending custom values and overriding PORT.
+	// Setup environment variables, appending custom values, overriding PORT, and injecting secrets
 	existingEnvironment := os.Environ()
 	environmentOverrides := []string{
 		fmt.Sprintf("PORT=%d", ai.Port),
+		fmt.Sprintf("AGENT_VERSION=%s", ai.Version),
+		fmt.Sprintf("NODE_ID=%s", ai.NodeID),
 	}
+
+	// 1. Inject custom env variables from manifest
 	for _, envVariable := range manifest.Env {
 		environmentOverrides = append(environmentOverrides, fmt.Sprintf("%s=%s", envVariable.Name, envVariable.Value))
 	}
+
+	// 2. Inject global secrets and namespace-specific secrets (which overwrite defaults)
+	if secretsManager != nil {
+		globalSecrets := secretsManager.GetSecrets("global")
+		for key, val := range globalSecrets {
+			environmentOverrides = append(environmentOverrides, fmt.Sprintf("%s=%s", key, val))
+		}
+		agentSecrets := secretsManager.GetSecrets(manifest.Name)
+		for key, val := range agentSecrets {
+			environmentOverrides = append(environmentOverrides, fmt.Sprintf("%s=%s", key, val))
+		}
+	}
+
 	command.Env = append(existingEnvironment, environmentOverrides...)
 
 	// Pipe output/error streams to our log buffer.
@@ -146,7 +165,7 @@ func (ai *AgentInstance) Start(ctx context.Context, manifest *AgentManifest, por
 	ai.Cmd = command
 	ai.lock.Unlock()
 
-	fmt.Printf("[Orchestrator] Spawning agent %s (replica %s) on port %d...\n", ai.AgentName, ai.ID, ai.Port)
+	fmt.Printf("[Orchestrator] Spawning agent %s (version %s) on Node %s (Port %d)...\n", ai.AgentName, ai.Version, ai.NodeID, ai.Port)
 	if err := command.Start(); err != nil {
 		portAllocator.Release(ai.Port)
 		ai.lock.Lock()
@@ -262,3 +281,16 @@ func (ai *AgentInstance) Stop() {
 		}
 	}
 }
+
+// Restart halts the current execution and respawns the process.
+func (ai *AgentInstance) Restart(ctx context.Context, manifest *AgentManifest, portAllocator *PortAllocator, secretsManager *SecretsManager) error {
+	ai.Stop()
+	time.Sleep(500 * time.Millisecond) // Allow ports to clean up
+
+	ai.lock.Lock()
+	ai.Status = StatusSpawning
+	ai.lock.Unlock()
+
+	return ai.Start(ctx, manifest, portAllocator, secretsManager)
+}
+

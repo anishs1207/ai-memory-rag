@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -19,18 +20,22 @@ type AgentDeployment struct {
 	lock            sync.RWMutex
 }
 
-// Scheduler handles the lifecycle, scaling, and reconciliation of all agent deployments.
+// Scheduler handles the lifecycle, scheduling, and reconciliation of all agent deployments.
 type Scheduler struct {
-	deployments   map[string]*AgentDeployment
-	portAllocator *PortAllocator
-	lock          sync.RWMutex
+	deployments    map[string]*AgentDeployment
+	portAllocator  *PortAllocator
+	nodeManager    *NodeManager
+	secretsManager *SecretsManager
+	lock           sync.RWMutex
 }
 
-// NewScheduler creates a new scheduler instance associated with a port pool.
-func NewScheduler(portAllocator *PortAllocator) *Scheduler {
+// NewScheduler creates a new scheduler instance associated with a port pool and node/secret managers.
+func NewScheduler(portAllocator *PortAllocator, nodeManager *NodeManager, secretsManager *SecretsManager) *Scheduler {
 	return &Scheduler{
-		deployments:   make(map[string]*AgentDeployment),
-		portAllocator: portAllocator,
+		deployments:    make(map[string]*AgentDeployment),
+		portAllocator:  portAllocator,
+		nodeManager:    nodeManager,
+		secretsManager: secretsManager,
 	}
 }
 
@@ -135,6 +140,8 @@ func (s *Scheduler) Reconcile(agentName string) {
 			activeInstances = append(activeInstances, inst)
 		} else {
 			terminatedInstances = append(terminatedInstances, inst)
+			// Release resources on the node
+			s.nodeManager.ReleaseResources(inst.NodeID, inst.ID)
 		}
 	}
 	deployment.Instances = activeInstances
@@ -162,13 +169,31 @@ func (s *Scheduler) Reconcile(agentName string) {
 				break
 			}
 
+			// Schedule instance to a Node based on Placement Policy
+			nodeID, err := s.nodeManager.ScheduleInstance(deployment.Manifest)
+			if err != nil {
+				fmt.Printf("[Scheduler] Placement Error: Failed to place %s: %v\n", agentName, err)
+				s.portAllocator.Release(port)
+				break
+			}
+
 			replicaID := uuid.New().String()
 			instance := NewAgentInstance(replicaID, agentName, port)
+			instance.NodeID = nodeID
+			instance.Version = deployment.Manifest.Version
+			
 			deployment.Instances = append(deployment.Instances, instance)
+
+			// Allocate resources on the scheduled node
+			var memoryReq string
+			if deployment.Manifest.Placement != nil {
+				memoryReq = deployment.Manifest.Placement.Memory
+			}
+			s.nodeManager.AllocateResources(nodeID, replicaID, memoryReq)
 
 			// Spawn process in background context.
 			ctx := context.Background()
-			if err := instance.Start(ctx, deployment.Manifest, s.portAllocator); err != nil {
+			if err := instance.Start(ctx, deployment.Manifest, s.portAllocator, s.secretsManager); err != nil {
 				fmt.Printf("[Scheduler] Error starting instance %s: %v\n", replicaID, err)
 			}
 		}
@@ -183,6 +208,9 @@ func (s *Scheduler) Reconcile(agentName string) {
 			instanceToStop := deployment.Instances[indexToStop]
 			fmt.Printf("[Scheduler] Scaling down: Stopping instance %s of agent %s\n", instanceToStop.ID, agentName)
 			instanceToStop.Stop()
+			
+			// Release resources on the node
+			s.nodeManager.ReleaseResources(instanceToStop.NodeID, instanceToStop.ID)
 		}
 
 		// Keep only the non-excess instances.
@@ -264,7 +292,6 @@ func (s *Scheduler) StartScaleToZeroMonitor(ctx context.Context) {
 // checkIdleDeployments iterates through deployments and evaluates idleness against manifest configurations.
 func (s *Scheduler) checkIdleDeployments() {
 	s.lock.RLock()
-	// Create a list of names to avoid holding the scheduler lock while reconciling.
 	deploymentNames := make([]string, 0, len(s.deployments))
 	for name := range s.deployments {
 		deploymentNames = append(deploymentNames, name)
@@ -307,9 +334,8 @@ func (s *Scheduler) checkIdleDeployments() {
 	}
 }
 
-// StartQueueAutoscaler spawns a periodic checker loop that monitors queue depth for each agent
-// and scales replicas up if the task load is high, up to maxReplicas.
-func (s *Scheduler) StartQueueAutoscaler(ctx context.Context, jobQueue *JobQueue) {
+// StartMetricsAutoscaler runs a periodic checks loop monitoring metrics and adjusting replica scales.
+func (s *Scheduler) StartMetricsAutoscaler(ctx context.Context, observability *ObservabilityManager, jobQueue *JobQueue) {
 	ticker := time.NewTicker(2 * time.Second)
 	go func() {
 		for {
@@ -318,14 +344,13 @@ func (s *Scheduler) StartQueueAutoscaler(ctx context.Context, jobQueue *JobQueue
 				ticker.Stop()
 				return
 			case <-ticker.C:
-				s.checkQueueAutoscaling(jobQueue)
+				s.checkMetricsAutoscaling(observability, jobQueue)
 			}
 		}
 	}()
 }
 
-// checkQueueAutoscaling queries pending queue depths and triggers replica scaling up to the configured maxReplicas.
-func (s *Scheduler) checkQueueAutoscaling(jobQueue *JobQueue) {
+func (s *Scheduler) checkMetricsAutoscaling(observability *ObservabilityManager, jobQueue *JobQueue) {
 	s.lock.RLock()
 	deploymentNames := make([]string, 0, len(s.deployments))
 	for name := range s.deployments {
@@ -342,25 +367,128 @@ func (s *Scheduler) checkQueueAutoscaling(jobQueue *JobQueue) {
 		}
 
 		dep.lock.Lock()
-		pendingJobsCount := jobQueue.GetPendingJobsCount(name)
+		manifest := dep.Manifest
 
-		// HPA scaling logic: if there are pending tasks, scale replicas up.
-		// We allocate 1 replica per 2 pending jobs (e.g. 1 job -> 1 replica, 3 jobs -> 2 replicas).
-		if pendingJobsCount > 0 && dep.DesiredReplicas < dep.Manifest.MaxReplicas {
-			calculatedReplicas := (pendingJobsCount + 1) / 2
-			if calculatedReplicas > dep.Manifest.MaxReplicas {
-				calculatedReplicas = dep.Manifest.MaxReplicas
+		// 1. Determine scaling rules. Default to queue depth scaling if not specified
+		metricName := "queue_depth"
+		var targetValue float64 = 2.0 // 1 replica per 2 pending items
+		if manifest.Autoscaling != nil {
+			metricName = manifest.Autoscaling.Metric
+			targetValue = manifest.Autoscaling.Target
+		}
+
+		var currentMetricValue float64
+		switch metricName {
+		case "queue_depth":
+			pendingJobs := jobQueue.GetPendingJobsCount(name)
+			currentMetricValue = float64(pendingJobs)
+
+		case "cpu":
+			// Read simulated CPU usage from scheduled nodes
+			var totalCPU float64
+			var nodeCount float64
+			for _, inst := range dep.Instances {
+				s.nodeManager.nodeLock.RLock()
+				if node, exists := s.nodeManager.nodes[inst.NodeID]; exists {
+					totalCPU += node.CPUUsagePercentage
+					nodeCount++
+				}
+				s.nodeManager.nodeLock.RUnlock()
+			}
+			if nodeCount > 0 {
+				currentMetricValue = totalCPU / nodeCount
+			} else {
+				currentMetricValue = 0.0
 			}
 
-			// Only scale up if the calculated replica requirement exceeds the current level.
-			if calculatedReplicas > dep.DesiredReplicas {
-				fmt.Printf("[Scheduler] Autoscaling: Queue depth for %s is %d. Scaling up to %d replicas...\n", name, pendingJobsCount, calculatedReplicas)
-				dep.DesiredReplicas = calculatedReplicas
-				dep.lock.Unlock()
-				s.Reconcile(name)
-				continue
+		case "memory":
+			// Read average memory usage percentage
+			var totalMemoryUsage float64
+			var count float64
+			for _, inst := range dep.Instances {
+				s.nodeManager.nodeLock.RLock()
+				if node, exists := s.nodeManager.nodes[inst.NodeID]; exists {
+					if node.TotalMemoryBytes > 0 {
+						totalMemoryUsage += (float64(node.MemoryAllocatedBytes) / float64(node.TotalMemoryBytes)) * 100.0
+					}
+					count++
+				}
+				s.nodeManager.nodeLock.RUnlock()
+			}
+			if count > 0 {
+				currentMetricValue = totalMemoryUsage / count
+			}
+
+		case "rps":
+			// Calculate Requests Per Second in the last 10s from metrics history
+			observability.lock.RLock()
+			var requestsInLast10s int
+			for _, rec := range observability.records {
+				if rec.AgentName == name && time.Since(rec.Timestamp) <= 10*time.Second {
+					requestsInLast10s++
+				}
+			}
+			observability.lock.RUnlock()
+			currentMetricValue = float64(requestsInLast10s) / 10.0
+
+		case "token_usage":
+			// Calculate total tokens consumed per second in the last 10s
+			observability.lock.RLock()
+			var tokensInLast10s int
+			for _, rec := range observability.records {
+				if rec.AgentName == name && time.Since(rec.Timestamp) <= 10*time.Second {
+					tokensInLast10s += rec.TokensInput + rec.TokensOutput
+				}
+			}
+			observability.lock.RUnlock()
+			currentMetricValue = float64(tokensInLast10s) / 10.0
+		}
+
+		// Calculate desired replicas
+		if targetValue <= 0 {
+			targetValue = 1.0 // Prevent division by zero
+		}
+
+		var calculatedReplicas int
+		if metricName == "queue_depth" {
+			// Specific formula for jobs: 1 replica per targetValue pending jobs
+			if currentMetricValue > 0 {
+				calculatedReplicas = int(math.Ceil(currentMetricValue / targetValue))
+			} else {
+				calculatedReplicas = dep.DesiredReplicas // Keep existing if queue is empty
+			}
+		} else {
+			// Target tracking: scale relative to target threshold
+			if currentMetricValue > targetValue {
+				// Scale up proportionately
+				currentReplicas := len(dep.Instances)
+				if currentReplicas == 0 {
+					currentReplicas = 1
+				}
+				calculatedReplicas = int(math.Ceil((currentMetricValue / targetValue) * float64(currentReplicas)))
+			} else {
+				calculatedReplicas = dep.DesiredReplicas // Keep existing or scale down on idle (handled by scale-to-zero)
 			}
 		}
+
+		// Enforce boundaries
+		if calculatedReplicas > manifest.MaxReplicas {
+			calculatedReplicas = manifest.MaxReplicas
+		}
+		if calculatedReplicas < manifest.MinReplicas {
+			calculatedReplicas = manifest.MinReplicas
+		}
+
+		// Adjust replicas if requirements changed
+		if calculatedReplicas > dep.DesiredReplicas {
+			fmt.Printf("[Scheduler] Autoscaling: Metric %s for %s is %.2f (target %.2f). Scaling up to %d replicas...\n",
+				metricName, name, currentMetricValue, targetValue, calculatedReplicas)
+			dep.DesiredReplicas = calculatedReplicas
+			dep.lock.Unlock()
+			s.Reconcile(name)
+			continue
+		}
+
 		dep.lock.Unlock()
 	}
 }
@@ -380,9 +508,11 @@ func (s *Scheduler) StopAll() {
 			go func(instance *AgentInstance) {
 				defer waitGroup.Done()
 				instance.Stop()
+				s.nodeManager.ReleaseResources(instance.NodeID, instance.ID)
 			}(inst)
 		}
 		dep.lock.Unlock()
 	}
 	waitGroup.Wait()
 }
+

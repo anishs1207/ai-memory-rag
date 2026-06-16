@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgentOS Control Plane Console</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Outfit:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <!-- Inline styles fallback if stylesheet fails, but we'll link styles.css -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="console-wrapper">
+        <!-- Dashboard Header -->
+        <header class="main-header">
+            <div class="logo-area">
+                <div class="status-indicator blinking" id="server-status-dot"></div>
+                <h1>AgentOS // <span class="accent-text">Control Plane</span></h1>
+            </div>
+            <div class="sys-metrics">
+                <div class="metric-item">
+                    <span class="metric-label">API Status</span>
+                    <span class="metric-value text-healthy" id="server-status-text">Connecting...</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label">Accumulated Costs</span>
+                    <span class="metric-value text-accent" id="system-costs">$0.0000</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label">Deployments</span>
+                    <span class="metric-value" id="count-deployments">0</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label">Total Replicas</span>
+                    <span class="metric-value" id="count-replicas">0</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Workspace Grid -->
+        <main class="workspace-grid">
+
+            <!-- Left Column: Operations & Sidebar -->
+            <section class="sidebar-column">
+
+                <!-- Deploy Agent Panel -->
+                <div class="panel card">
+                    <div class="panel-header">
+                        <h2>Deploy Agent</h2>
+                    </div>
+                    <div class="panel-body">
+                        <p class="panel-description">Deploy agent from an agent.yaml manifest path</p>
+
+                        <!-- Presets Quick Fill -->
+                        <div class="presets-container">
+                            <span class="preset-label">Presets:</span>
+                            <button class="btn btn-secondary btn-xs"
+                                onclick="fillDeployPath('./example/weather/agent.yaml')">Weather</button>
+                            <button class="btn btn-secondary btn-xs"
+                                onclick="fillDeployPath('./example/calculator/agent.yaml')">Calculator</button>
+                        </div>
+
+                        <form id="deploy-form">
+                            <div class="form-group">
+                                <label for="manifest-path">Manifest File Path</label>
+                                <input type="text" id="manifest-path" placeholder="./path/to/agent.yaml" required
+                                    autocomplete="off">
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-block" id="btn-deploy">Initialize Deployment</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Cluster Nodes Fleet -->
+                <div class="panel card">
+                    <div class="panel-header">
+                        <h2>Node Fleet</h2>
+                    </div>
+                    <div class="panel-body">
+                        <div class="fleet-status-summary">
+                            <span class="sub-title">Active Host Worker Nodes</span>
+                        </div>
+                        <div class="node-list" id="nodes-container">
+                            <div class="empty-state">No nodes tracked.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Global Secrets Store -->
+                <div class="panel card">
+                    <div class="panel-header">
+                        <h2>Secrets Store</h2>
+                    </div>
+                    <div class="panel-body">
+                        <form id="secret-form">
+                            <div class="form-row">
+                                <div class="form-group col-6">
+                                    <label for="secret-namespace">Namespace:</label>
+                                    <select id="secret-namespace">
+                                        <option value="global">global</option>
+                                        <option value="weather-agent">weather-agent</option>
+                                        <option value="calculator-agent">calculator-agent</option>
+                                    </select>
+                                </div>
+                                <div class="form-group col-6">
+                                    <label for="secret-key">Secret Key:</label>
+                                    <input type="text" id="secret-key" placeholder="API_KEY" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="secret-val">Secret Value:</label>
+                                <input type="password" id="secret-val" placeholder="••••••••••••••••" required>
+                            </div>
+                            <button type="submit" class="btn btn-secondary btn-block">INJECT SECRET</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- App Marketplace -->
+                <div class="panel card">
+                    <div class="panel-header">
+                        <h2>Template Marketplace</h2>
+                    </div>
+                    <div class="panel-body">
+                        <div class="marketplace-list" id="marketplace-container">
+                            <div class="empty-state">Loading templates...</div>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- Right Column: Active Fleet & Controls -->
+            <section class="main-column">
+
+                <!-- Deployments Panel -->
+                <div class="panel card" style="flex: 2;">
+                    <div class="panel-header">
+                        <h2>Active Deployments</h2>
+                        <button class="btn btn-secondary btn-sm" onclick="refreshDeployments()">FORCE REFRESH</button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="deployments-grid" id="deployments-container">
+                            <div class="empty-state">
+                                <div class="terminal-loader"></div>
+                                <p>Scanning orchestrator for deployed agents...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Console Output / Log Streams -->
+                <div class="panel card log-panel" style="flex: 1.5;">
+                    <div class="panel-header">
+                        <h2>System Logs // <span id="current-log-agent">None</span></h2>
+                        <div class="header-actions">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="log-auto-scroll" checked>
+                                <label for="log-auto-scroll">Auto-scroll</label>
+                            </div>
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="log-auto-refresh" checked>
+                                <label for="log-auto-refresh">Live Stream</label>
+                            </div>
+                            <button class="btn btn-secondary btn-xs" id="btn-clear-logs">Clear Screen</button>
+                        </div>
+                    </div>
+                    <div class="panel-body log-console-wrapper">
+                        <div class="log-console-header">
+                            <div class="instance-selectors" id="log-instance-selector">
+                                <span class="selector-label">Instance Logs:</span>
+                                <button class="btn btn-secondary btn-xs active-log-tab"
+                                    onclick="setLogViewMode('all')">Consolidated</button>
+                            </div>
+                        </div>
+                        <div class="log-terminal" id="log-terminal-body">
+                            <div class="log-line system-line">[SYSTEM] Control plane console listening for log
+                                streams...</div>
+                            <div class="log-line system-line">[SYSTEM] Select an agent's "VIEW LOGS" to stream terminal
+                                stdout/stderr logs.</div>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Agent Test Modal / Overlay Drawer -->
+    <div class="modal-overlay" id="test-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2>Agent Test Runner // <span id="test-agent-name" class="accent-text">weather-agent</span></h2>
+                <button class="btn-close" onclick="closeTestRunner()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="test-config-row">
+                    <!-- Left: Invocation Builder -->
+                    <div class="test-builder-col">
+                        <div class="panel-subheader">Execution Strategy</div>
+
+                        <!-- Toggle Mode -->
+                        <div class="mode-toggle-group">
+                            <button class="btn btn-mode active" id="btn-mode-sync" onclick="setTestMode('sync')">
+                                <strong>Synchronous</strong>
+                                <span class="btn-subtext">Direct Proxy (/proxy/...)</span>
+                            </button>
+                            <button class="btn btn-mode" id="btn-mode-async" onclick="setTestMode('async')">
+                                <strong>Asynchronous</strong>
+                                <span class="btn-subtext">Job Queue (/api/.../jobs)</span>
+                            </button>
+                        </div>
+
+                        <!-- Specific Agent Form Wrapper -->
+                        <div class="agent-form-container">
+                            <div class="panel-subheader">Query Configuration</div>
+
+                            <!-- Weather Agent Form -->
+                            <div id="test-form-weather" class="test-agent-form" style="display: none;">
+                                <div class="form-group">
+                                    <label for="weather-city">Target City:</label>
+                                    <input type="text" id="weather-city" value="Seattle"
+                                        placeholder="e.g. Seattle, Paris, Tokyo">
+                                </div>
+                            </div>
+
+                            <!-- Calculator Agent Form -->
+                            <div id="test-form-calculator" class="test-agent-form" style="display: none;">
+                                <div class="form-row">
+                                    <div class="form-group col-6">
+                                        <label for="calc-num1">Number 1:</label>
+                                        <input type="number" id="calc-num1" value="10">
+                                    </div>
+                                    <div class="form-group col-6">
+                                        <label for="calc-num2">Number 2:</label>
+                                        <input type="number" id="calc-num2" value="5">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="calc-op">Operation:</label>
+                                    <select id="calc-op">
+                                        <option value="add">Add (+)</option>
+                                        <option value="subtract">Subtract (-)</option>
+                                        <option value="multiply">Multiply (*)</option>
+                                        <option value="divide">Divide (/)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Generic Agent Form Builder -->
+                            <div id="test-form-generic" class="test-agent-form">
+                                <div class="form-group">
+                                    <label for="generic-path">Request Sub-path:</label>
+                                    <input type="text" id="generic-path" value="/invoke"
+                                        placeholder="e.g. /invoke or /health">
+                                </div>
+                                <div class="form-group">
+                                    <label>Parameters (Query string parameters):</label>
+                                    <div id="generic-params-list">
+                                        <div class="param-row">
+                                            <input type="text" class="param-key" placeholder="Key" value="query">
+                                            <input type="text" class="param-val" placeholder="Value"
+                                                value="Hello Agent">
+                                            <button type="button" class="btn-remove-param"
+                                                onclick="removeParamRow(this)">&times;</button>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-secondary btn-xs" onclick="addParamRow()"
+                                        style="margin-top: 5px;">+ Add Parameter</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary btn-block btn-lg" onclick="triggerAgentTest()" id="btn-run-test">
+                            DISPATCH INVOCATION
+                        </button>
+                    </div>
+
+                    <!-- Right: Response Terminal Inspector -->
+                    <div class="test-result-col">
+                        <div class="panel-subheader">Execution Output Console</div>
+                        <div class="response-terminal-wrapper">
+                            <!-- Job Progress Stepper for Async Jobs -->
+                            <div id="job-progress-stepper" class="job-stepper" style="display: none;">
+                                <div class="step-indicator" id="step-queued">
+                                    <div class="step-dot"></div>
+                                    <div class="step-info">
+                                        <span class="step-title">QUEUED</span>
+                                        <span class="step-desc" id="step-queued-desc">Enqueued in buffer</span>
+                                    </div>
+                                </div>
+                                <div class="step-indicator" id="step-running">
+                                    <div class="step-dot"></div>
+                                    <div class="step-info">
+                                        <span class="step-title">RUNNING</span>
+                                        <span class="step-desc" id="step-running-desc">Assigned to queue worker</span>
+                                    </div>
+                                </div>
+                                <div class="step-indicator" id="step-finished">
+                                    <div class="step-dot"></div>
+                                    <div class="step-info">
+                                        <span class="step-title" id="step-finished-title">COMPLETED</span>
+                                        <span class="step-desc" id="step-finished-desc">Result collected</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <pre class="response-terminal"
+                                id="response-output-code">{\n  "status": "awaiting_execution",\n  "message": "Click Dispatch Invocation to execute agent tools"\n}</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Javascript Logic -->
+    <script src="app.js"></script>
+</body>
+
+</html>
