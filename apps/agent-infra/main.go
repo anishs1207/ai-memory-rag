@@ -9,6 +9,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"anishs1207/ai-infra/orchestrator"
 )
 
 func main() {
@@ -21,41 +23,41 @@ func main() {
 	defer stopSignalTrap()
 
 	// 1. Initialize the Port Allocator with a wide range of ports (10000 to 11000) for agent replicas.
-	portAllocator := NewPortAllocator(10000, 11000)
+	portAllocator := orchestrator.NewPortAllocator(10000, 11000)
 
 	// --- NEW SUBSYSTEM INITIALIZATION ---
 	
 	// 2. Initialize simulated Node fleet
-	nodeManager := NewNodeManager()
+	nodeManager := orchestrator.NewNodeManager()
 
 	// 3. Initialize Secrets Manager
-	secretsManager := NewSecretsManager()
+	secretsManager := orchestrator.NewSecretsManager()
 
 	// 4. Initialize State Store (will probe local Postgres & Redis)
-	stateStore := NewStateStore()
+	stateStore := orchestrator.NewStateStore()
 
 	// 5. Initialize Observability Metrics Tracker
-	observability := NewObservabilityManager()
+	observability := orchestrator.NewObservabilityManager()
 
 	// 6. Initialize Agent Registry and simulated Marketplace
-	registry := NewAgentRegistry()
-	marketplace := NewAgentMarketplace()
+	registry := orchestrator.NewAgentRegistry()
+	marketplace := orchestrator.NewAgentMarketplace()
 
 	// 7. Initialize the Scheduler which manages the actual-versus-desired replica states.
-	scheduler := NewScheduler(portAllocator, nodeManager, secretsManager)
+	scheduler := orchestrator.NewScheduler(portAllocator, nodeManager, secretsManager)
 
 	// 8. Initialize the Job Queue with a buffer of 1000 enqueued tasks and 4 concurrent background worker threads.
-	jobQueue := NewJobQueue(scheduler, 1000, 4)
+	jobQueue := orchestrator.NewJobQueue(scheduler, 1000, 4)
 
 	// 9. Initialize Event Bus
-	eventBus := NewEventBus(scheduler)
+	eventBus := orchestrator.NewEventBus(scheduler)
 
 	// 10. Initialize Workflow Engine
-	workflowEngine := NewWorkflowEngine(jobQueue)
+	workflowEngine := orchestrator.NewWorkflowEngine(jobQueue)
 
 	// 11. Initialize the HTTP Proxy Router and the Management API Server.
-	proxyHandler := NewProxyHandler(scheduler, observability)
-	apiServer := NewAPIServer(
+	proxyHandler := orchestrator.NewProxyHandler(scheduler, observability)
+	apiServer := orchestrator.NewAPIServer(
 		scheduler,
 		jobQueue,
 		proxyHandler,

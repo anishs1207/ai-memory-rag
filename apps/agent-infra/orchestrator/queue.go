@@ -1,6 +1,7 @@
-package main
+package orchestrator
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -160,28 +161,53 @@ func (jq *JobQueue) processJob(jobID string, workerID int) {
 	selectedInstance := healthyInstances[0]
 
 	// 3. Make HTTP request to agent endpoint /invoke.
-	// Convert input JSON properties into HTTP GET query parameters (matching Express example).
+	// Convert input JSON properties into HTTP POST payload or fallback to GET query parameters.
 	requestURL := fmt.Sprintf("http://localhost:%d/invoke", selectedInstance.Port)
 	httpClient := &http.Client{Timeout: 60 * time.Second}
 
-	httpRequest, err := http.NewRequest("GET", requestURL, nil)
+	jsonBody, err := json.Marshal(job.Input)
 	if err != nil {
-		jq.updateJobStatus(jobID, JobFailed, nil, fmt.Sprintf("failed to construct request: %v", err))
+		jq.updateJobStatus(jobID, JobFailed, nil, fmt.Sprintf("failed to marshal input JSON: %v", err))
 		return
 	}
 
-	queryParameters := httpRequest.URL.Query()
-	for key, value := range job.Input {
-		queryParameters.Add(key, fmt.Sprintf("%v", value))
+	fmt.Printf("[Queue Worker %d] Dispatching HTTP POST request to %s\n", workerID, requestURL)
+	postRequest, err := http.NewRequest("POST", requestURL, bytes.NewBuffer(jsonBody))
+	var httpResponse *http.Response
+	
+	if err == nil {
+		postRequest.Header.Set("Content-Type", "application/json")
+		httpResponse, err = httpClient.Do(postRequest)
 	}
-	httpRequest.URL.RawQuery = queryParameters.Encode()
 
-	fmt.Printf("[Queue Worker %d] Dispatching HTTP request to %s\n", workerID, httpRequest.URL.String())
-
-	httpResponse, err := httpClient.Do(httpRequest)
+	useFallback := false
 	if err != nil {
-		jq.updateJobStatus(jobID, JobFailed, nil, fmt.Sprintf("HTTP request to agent failed: %v", err))
-		return
+		useFallback = true
+	} else if httpResponse.StatusCode == http.StatusMethodNotAllowed || httpResponse.StatusCode == http.StatusNotFound {
+		httpResponse.Body.Close()
+		useFallback = true
+	}
+
+	if useFallback {
+		fmt.Printf("[Queue Worker %d] POST failed or not allowed. Falling back to HTTP GET to %s\n", workerID, requestURL)
+		
+		getRequest, err := http.NewRequest("GET", requestURL, nil)
+		if err != nil {
+			jq.updateJobStatus(jobID, JobFailed, nil, fmt.Sprintf("failed to construct GET request: %v", err))
+			return
+		}
+
+		queryParameters := getRequest.URL.Query()
+		for key, value := range job.Input {
+			queryParameters.Add(key, fmt.Sprintf("%v", value))
+		}
+		getRequest.URL.RawQuery = queryParameters.Encode()
+
+		httpResponse, err = httpClient.Do(getRequest)
+		if err != nil {
+			jq.updateJobStatus(jobID, JobFailed, nil, fmt.Sprintf("HTTP GET request to agent failed: %v", err))
+			return
+		}
 	}
 	defer httpResponse.Body.Close()
 

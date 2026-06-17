@@ -1,56 +1,113 @@
-# AgentOS Orchestrator
+# AgentOS Orchestrator Engine
 
-AgentOS is a production-grade, lightweight Kubernetes-like orchestrator for AI agents written in Go. It manages agent deployments, handles dynamic port allocation, reverse-proxies and load-balances incoming traffic, implements scale-to-zero autoscaling, and processes long-running agent tasks via an internal background job queue.
+AgentOS is a production-grade, lightweight, Kubernetes-like orchestrator for AI agents written in Go. It manages agent lifecycles, handles dynamic host port allocation, reverse-proxies and load-balances incoming traffic, implements scale-to-zero autoscaling, tracks costs, manages node fleets, coordinates multi-agent workflow pipelines, and processes long-running agent tasks via an internal background job queue.
 
-It is designed to support agents built in different frameworks (e.g. LangChain, CrewAI, LangGraph) by running them as sandboxed service microservices that communicate over HTTP.
+It is designed to support agents built in any language or framework (e.g., LangChain, CrewAI, LangGraph, Zod-agents) by running them as sandboxed service microservices that communicate over HTTP.
 
 ---
 
-## Architecture Diagram
+## System Architecture Diagram
 
 ```
-                 +--------------------------------------------+
-                 |            Control Plane Gateway           |
-                 |               (Port 8080)                  |
-                 +-----+-------------------+------------+-----+
-                       |                   |            |
-     [HTTP Proxy]      |    [Control API]  |            |  [Job API]
-                       v                   v            v
-+----------------------+--+  +-------------+--+  +------+------+
-|   Reverse Proxy &    |  |  |  Scheduler   |  |  |  Job Queue  |
-|    Load Balancer     |  |  | Controller   |  |  |   & Workers |
-+----------+-----------+  |  +------+-------+  |  +-----+------+
-           |              |         |          |        |
-           | (routes)     |         | (scales) |        | (invokes)
-           |              |         v          |        |
-           |              |  +------+-------+  |        |
-           |              |  | Port Pool    |  |        |
-           |              |  | (10000-11000)|  |        |
-           |              |  +--------------+  |        |
-           |              v                    v        |
-           |       +------+--------------------+-----+  |
-           +------>|         Agent Worker Fleet        |<-+
-                   |  (weather-agent, research, etc.) |
-                   +---------------------------------+
+                                 +---------------------------------------------+
+                                 |          Developer Control Panel            |
+                                 |        (Served static at /dashboard/)       |
+                                 +----------------------+----------------------+
+                                                        | (REST APIs & Proxy Calls)
+                                                        v
+                                 +---------------------------------------------+
+                                 |            Control Plane Gateway            |
+                                 |                 (Port 8080)                 |
+                                 +---+------------------+------------------+---+
+                                     |                  |                  |
+                       [HTTP Proxy]  |    [Control API] |       [Job API]  |
+                                     v                  v                  v
+                                 +---+----+      +------+-----+      +-----+----+
+                                 | Reverse|      |  Registry  |      |   Job    |
+                                 | Proxy  |      |     &      |      |  Queue   |
+                                 | Loader |      | Marketplace|      |  Workers |
+                                 +---+----+      +------+-----+      +-----+----+
+                                     |                  |                  |
+                                     | (routes)         | (config spec)    | (submits jobs)
+                                     v                  v                  v
+                                 +---+------------------+------------------+---+
+                                 |                 Scheduler                   |
+                                 |   (Autoscale / Port Pool / Placement)       |
+                                 +---+-----+------------+-----+------------+-----+
+                                     |     |            |     |            |
+                                     |     | [Secrets]  |     | [State]    | [Metrics]
+                                     v     v            v     v            v
+                                 +---+-----+------------+-----+------------+-----+
+                                 |  Secrets  |  Event Bus | State Store| Observ-|
+                                 |  Manager  |  (Pub/Sub) | (Cache/DB) | ability|
+                                 +-----------+------------+------------+--------+
+                                                        |
+                                                        | (coordinates steps)
+                                                        v
+                                 +---------------------------------------------+
+                                 |               Workflow Engine               |
+                                 |         (Pipeline Steps Executor)           |
+                                 +----------------------+----------------------+
+                                                        |
+                                                        | (schedules onto)
+                                                        v
+                                 +---------------------------------------------+
+                                 |              Cluster Node Fleet             |
+                                 |      [node-a]     [node-b]     [node-c]     |
+                                 |     (GPU, 32G)   (GPU, 32G)   (CPU, 16G)    |
+                                 +----------------------+----------------------+
+                                                        |
+                                                        | (hosts replicas)
+                                                        v
+                                 +---------------------------------------------+
+                                 |             Agent Worker Fleet              |
+                                 |   (weather-agent, calculator-agent, etc.)   |
+                                 +---------------------------------------------+
 ```
 
 ---
 
-## Key Features
+## Detailed Subsystem Functionality
 
-1. **Declarative Deployments**: Define agent metadata, commands, min/max scaling policies, and custom environment variables in a single `agent.yaml` file.
-2. **Dynamic Port Allocation**: Orchestrator dynamically manages a pool of ports (`10000-11000`) and passes the assigned port to the agent process via the `PORT` environment variable.
-3. **Autoscaling (Scale-to-Zero)**: Scale down idle agents automatically to save memory, and bring them back up instantly on-demand ("cold start") when traffic arrives.
-4. **Historical Log Retention**: Preserves a sliding window of the last 5 terminated instances' console logs to prevent diagnostics loss on scale-down or crash events.
-5. **Reverse Proxy Load Balancing**: Round-robins incoming traffic over healthy replicas under `/proxy/:agent_name/*`.
-6. **Async Job Queue**: Submit long-running tasks asynchronously, allowing workers to execute the agent and store outputs for polling.
-7. **Trapped Graceful Shutdown**: Automatically catches interrupt signals (`SIGINT`, `SIGTERM`) and cleans up the child processes recursively (including Windows child process trees).
+### 1. Gateway & Reverse Proxy Router
+* **Path Routing**: Listens at port `8080`. API commands are processed under `/api/*`, static dashboard panels at `/dashboard/`, and agent microservice traffic under `/proxy/:agent_name/*`.
+* **Load Balancing**: Distributes incoming requests in a round-robin format across all healthy running replica containers of the requested agent.
+* **On-Demand Scaling**: If a request hits a scaled-to-zero agent, the proxy blocks the request, instructs the scheduler to spawn a replica container, waits until the replica passes the `/health` readiness check, and then forwards the request transparently.
+
+### 2. Scheduler & Resource Placement
+* **Reconciler Loop**: Regularly compares the current running instances against desired specifications. It automatically scales up (spawning subprocesses and mapping ports) or down (gracefully terminating subprocesses) as required.
+* **Dynamic Port Allocation**: Reserves and manages a host port pool (`10000-11000`). It dynamically assigns ports to running replicas and injects the port value via the `PORT` environment variable.
+* **Node Scheduling**: When scaling up, the scheduler delegates node selection to the **Node Manager**. Replicas are scheduled onto nodes (`node-a`, `node-b`, `node-c`) based on:
+  - **Region Constraints**: Matching the agent's desired deployment region.
+  - **Hardware Filters**: Verifying if GPU acceleration is required.
+  - **Memory Limits**: Sizing available RAM against deployment criteria.
+  - **Least Load Scheduling**: Placing the replica container on the qualified node with the lowest current CPU load.
+* **Scale-To-Zero Monitor**: Evaluates idle deployments. If an agent receives no traffic within its configured `idleTimeout` and has `minReplicas: 0`, the scheduler scales it down to zero to free host memory.
+
+### 3. Workflow Pipeline Engine
+* **Execution Sequencer**: Automates step-by-step orchestrations of multi-agent tasks. It registers blueprints (e.g., passing data from a calculator agent to a weather agent).
+* **Data Context Interpolation**: Steps can parameterize arguments dynamically by interpolating outputs from previous steps using the standard bracket syntax:
+  - `{{input.value}}` maps global pipeline inputs.
+  - `{{steps.stepname.output.field}}` resolves fields from a previous step's final JSON result.
+
+### 4. Secrets Management
+* **Namespace Isolation**: Secures agent configuration variables (like API keys) in a dedicated registry isolated by agent namespaces.
+* **Environment Injection**: Secrets are dynamically loaded and injected into subprocess runtimes upon initialization.
+
+### 5. State Store
+* **Persistence & Cache**: Emulates database and cache persistence for agents using a simulated Redis memory layer and local PostgreSQL storage integration, facilitating persistent chat histories and state records.
+
+### 6. Event Bus
+* **Asynchronous Pub/Sub**: Enables agents to run asynchronously by publishing events to topic channels and subscribing to topics, facilitating event-driven architectures.
+
+### 7. Observability & Costs Tracker
+* **Compute Auditing**: Collects metrics (CPU usage, memory allocation, replica counts) and logs billing details. It tallies simulated compute costs based on active running seconds and token operations.
 
 ---
 
-## Configuration Spec (`agent.yaml`)
+## Configuration Specification (`agent.yaml`)
 
-Place an `agent.yaml` in your agent's directory:
+Place an `agent.yaml` configuration in your agent's source directory:
 
 ```yaml
 # Unique identifier of the agent deployment
@@ -72,10 +129,14 @@ maxReplicas: 3
 # Duration of inactivity before scale-to-zero is triggered (e.g. 30s, 5m)
 idleTimeout: 30s
 
+# Hardware and region constraints for node scheduling
+placement:
+  region: us-east-1
+  gpu: false
+  memory: 512Mi
+
 # Environment variables injected into the agent runtime
 env:
-  - name: GEMINI_API_KEY
-    value: "your-gemini-api-key"
   - name: NODE_ENV
     value: "production"
 ```
@@ -85,20 +146,18 @@ env:
 ## Quick Start Guide
 
 ### 1. Build and Run the Orchestrator
-
-Compile and start the Go server:
-```bash
+Compile and start the Go server from the `apps/agent-infra` directory:
+```powershell
 # Compile Go binary
 go build -o ai-infra.exe
 
 # Start orchestrator
-./ai-infra.exe
+.\ai-infra.exe
 ```
-The control plane and reverse proxy will start listening at `http://localhost:8080`.
+The gateway, proxy, and dashboard will boot and listen at `http://localhost:8080`.
 
 ### 2. Deploy an Agent
-Submit a deployment request pointing to your `agent.yaml` path:
-
+Submit a deployment request pointing to an `agent.yaml` file path:
 ```bash
 curl.exe -X POST -H "Content-Type: application/json" -d '{"path": "./example/weather/agent.yaml"}' http://localhost:8080/api/deploy
 ```
@@ -107,57 +166,48 @@ curl.exe -X POST -H "Content-Type: application/json" -d '{"path": "./example/wea
 
 ## API & Usage References
 
-### 1. Retrieve Running Agent Deployments
-List all registered deployments, their current desired states, and statuses of all running replicas:
+### 1. Deploy Agent
+* **Endpoint**: `POST /api/deploy`
+* **Payload**: `{"path": "./example/weather/agent.yaml"}`
 
-```bash
-curl.exe http://localhost:8080/api/agents
-```
-**Response Sample**:
+### 2. Retrieve Running Deployments
+* **Endpoint**: `GET /api/agents`
+* **Response Sample**:
 ```json
 [
   {
     "name": "weather-agent",
     "command": "npm start",
-    "resolved_dir": "C:\\Users\\Anish\\Documents\\building\\23-inqora\\apps\\agent-infra\\example",
+    "resolved_dir": "C:\\Users\\Anish\\Documents\\building\\23-inqora\\apps\\agent-infra\\example\\weather",
     "desired_replicas": 1,
     "min_replicas": 0,
     "max_replicas": 3,
     "idle_timeout": "30s",
-    "last_traffic_time": "2026-06-15T22:38:12+05:30",
     "instances": [
       {
         "id": "16bb84db-f11e-401a-b242-5624db4f262f",
         "port": 10000,
         "status": "HEALTHY",
-        "started_at": "2026-06-15T22:37:49+05:30"
+        "started_at": "2026-06-16T18:00:00Z"
       }
     ]
   }
 ]
 ```
 
-### 2. Call the Agent via Reverse Proxy (Load Balanced)
-Send requests directly through the orchestrator. If the agent is scaled to 0, it will boot the agent, block until the agent is healthy, and route the request:
-
+### 3. Call Agent via Proxy (Load Balanced)
+* **Endpoint**: `GET /proxy/:agent_name/:subpath`
+* **Example**:
 ```bash
 curl.exe "http://localhost:8080/proxy/weather-agent/invoke?city=Seattle"
 ```
 
-### 3. Asynchronous Job Queue API
-For long-running tasks, submit them to the queue and poll for completion:
-
-* **Submit Task**:
-  ```bash
-  curl.exe -X POST -H "Content-Type: application/json" -d '{"city": "Paris"}' http://localhost:8080/api/agents/weather-agent/jobs
-  ```
-  Returns: `{"status":"success","message":"Job enqueued","job_id":"<job_id>"}`
-
-* **Poll Task Result**:
-  ```bash
-  curl.exe http://localhost:8080/api/jobs/<job_id>
-  ```
-  Response:
+### 4. Asynchronous Job Queue API
+* **Submit Task**: `POST /api/agents/:agent_name/jobs`
+  - Body: `{"city": "Paris"}`
+  - Returns: `{"status":"success","message":"Job enqueued","job_id":"<uuid>"}`
+* **Poll Task Result**: `GET /api/jobs/:id`
+  - Returns:
   ```json
   {
     "id": "98d9c9d7-5236-4b10-adae-a317d0616f47",
@@ -165,28 +215,28 @@ For long-running tasks, submit them to the queue and poll for completion:
     "input": {"city": "Paris"},
     "output": {"response": "dummy response"},
     "status": "COMPLETED",
-    "created_at": "2026-06-15T22:38:12+05:30",
-    "finished_at": "2026-06-15T22:38:12+05:30"
+    "created_at": "2026-06-16T18:00:00Z",
+    "finished_at": "2026-06-16T18:00:05Z"
   }
   ```
 
-### 4. Fetch Agent Logs (Active & Historical)
-Retrieve consolidated logs from all active running replicas and the last 5 terminated replicas:
+### 5. Fetch Agent Logs
+* **Endpoint**: `GET /api/agents/:agent_name/logs`
+* **Description**: Returns consolidated log streams of stdout/stderr for both active running instances and the last 5 terminated history instances.
 
-```bash
-curl.exe http://localhost:8080/api/agents/weather-agent/logs
-```
+### 6. Manual Scale Replicas
+* **Endpoint**: `POST /api/agents/:agent_name/scale`
+* **Payload**: `{"replicas": 2}`
 
-### 5. Manual Scale Up/Down
-Override replicas configuration manually:
+### 7. Undeploy Agent
+* **Endpoint**: `DELETE /api/deploy/:agent_name`
 
-```bash
-curl.exe -X POST -H "Content-Type: application/json" -d '{"replicas": 2}' http://localhost:8080/api/agents/weather-agent/scale
-```
+### 8. List Cluster Nodes
+* **Endpoint**: `GET /api/nodes`
 
-### 6. Undeploy Agent
-Undeploy the agent, terminating all replicas and freeing allocated ports:
+### 9. Manage Secrets
+* **Endpoint**: `POST /api/secrets`
+* **Payload**: `{"namespace": "weather-agent", "key": "GEMINI_API_KEY", "value": "xyz"}`
 
-```bash
-curl.exe -X DELETE http://localhost:8080/api/deploy/weather-agent
-```
+### 10. List Marketplace templates
+* **Endpoint**: `GET /api/marketplace`

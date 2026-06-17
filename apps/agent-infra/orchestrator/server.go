@@ -1,4 +1,4 @@
-package main
+package orchestrator
 
 import (
 	"encoding/json"
@@ -112,6 +112,9 @@ func (s *APIServer) RegisterRoutes(serveMux *http.ServeMux) {
 
 	// Load-balanced HTTP Proxy Router
 	serveMux.HandleFunc("/proxy/", s.proxy.ServeHTTP)
+
+	// Orchestrator Health
+	serveMux.HandleFunc("GET /api/health", s.handleHealth)
 
 	// Serve static files for the dashboard control panel
 	serveMux.Handle("GET /dashboard/", http.StripPrefix("/dashboard/", http.FileServer(http.Dir("./dashboard"))))
@@ -743,5 +746,29 @@ func (s *APIServer) respondWithJSON(responseWriter http.ResponseWriter, statusCo
 	responseWriter.Header().Set("Content-Type", "application/json")
 	responseWriter.WriteHeader(statusCode)
 	_, _ = responseWriter.Write(responseBytes)
+}
+
+// handleHealth returns status information about the control plane and cluster nodes.
+func (s *APIServer) handleHealth(responseWriter http.ResponseWriter, request *http.Request) {
+	deployments := s.scheduler.GetDeployments()
+	totalInstances := 0
+	for _, dep := range deployments {
+		dep.lock.RLock()
+		totalInstances += len(dep.Instances)
+		dep.lock.RUnlock()
+	}
+
+	nodes := s.nodeManager.GetNodes()
+	nodeCount := len(nodes)
+
+	stats := map[string]interface{}{
+		"status":          "healthy",
+		"timestamp":       time.Now(),
+		"deployed_agents": len(deployments),
+		"active_replicas": totalInstances,
+		"node_count":      nodeCount,
+		"version":         "1.0.0",
+	}
+	s.respondWithJSON(responseWriter, http.StatusOK, stats)
 }
 
