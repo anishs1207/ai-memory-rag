@@ -8,61 +8,37 @@ import { useState, useEffect } from "react"
 import axios from "axios"
 import ChatSidebar from "@/components/chat/ChatSidebar";
 import ChatContent from "@/components/chat/ChatContent";
+import { useAppDispatch, useAppSelector } from "@/lib/redux/hooks";
+import {
+    setConversations,
+    setActiveId,
+    addConversation,
+    deleteConversation,
+    updateConversation as reduxUpdateConversation,
+    Conversation
+} from "@/lib/redux/chatSlice";
 
 const SERVER_URL = "http://localhost:3001";
 
-type ModelType = "general" | "finance" | "legal" | "pdf" | "budget" | "research"; // Updated models
-
-type ChatMessage = {
-    id: string;
-    role: "user" | "assistant";
-    content: string;
-    error?: boolean;
-    reasoning?: {
-        steps: {
-            title: string;
-            content: string;
-            status: "complete" | "running" | "pending";
-        }[];
-    };
-    toolCalls?: {
-        name: string;
-        args: Record<string, any>;
-        status: "pending" | "success" | "error";
-    }[];
-    requiresConfirmation?: boolean;
-    confirmed?: boolean;
-};
-
-type Conversation = {
-    id: string;
-    title: string;
-    model: ModelType;
-    messages: ChatMessage[];
-    selectedFile?: string;
-    timestamp: number;
-};
-
-
 export default function FullChatApp() {
-    const [conversations, setConversations] = useState<Conversation[]>([])
-    const [activeId, setActiveId] = useState<string>("")
+    const dispatch = useAppDispatch();
+    const conversations = useAppSelector(state => state.chat.conversations);
+    const activeId = useAppSelector(state => state.chat.activeId);
     const [files, setFiles] = useState<string[]>([])
 
-    // Load from localStorage on mount or create initial
+    // Load from localStorage on mount or create initial chat session
     useEffect(() => {
         const saved = localStorage.getItem("rag_conversations");
         if (saved) {
             const parsed = JSON.parse(saved);
-            setConversations(parsed);
-            if (parsed.length > 0) setActiveId(parsed[0].id);
+            dispatch(setConversations(parsed));
         } else {
             handleNewChat();
         }
         fetchFiles();
-    }, []);
+    }, [dispatch]);
 
-    // Save to localStorage
+    // Save to localStorage whenever conversations list updates
     useEffect(() => {
         if (conversations.length > 0) {
             localStorage.setItem("rag_conversations", JSON.stringify(conversations));
@@ -90,24 +66,35 @@ export default function FullChatApp() {
             messages: [],
             timestamp: Date.now()
         };
-        setConversations(prev => [newChat, ...prev]);
-        setActiveId(newChat.id);
+        dispatch(addConversation(newChat));
     };
 
     const handleDeleteChat = (id: string) => {
-        setConversations(prev => {
-            const filtered = prev.filter(c => c.id !== id);
-            if (activeId === id && filtered.length > 0) setActiveId(filtered[0]?.id || "");
-            else if (filtered.length === 0) handleNewChat();
-            return filtered;
-        });
+        // If we delete the last remaining chat session, create a new one first for continuous session availability
+        if (conversations.length === 1 && conversations[0]?.id === id) {
+            const newChat: Conversation = {
+                id: Date.now().toString(),
+                title: "New Conversation",
+                model: "general",
+                messages: [],
+                timestamp: Date.now()
+            };
+            dispatch(addConversation(newChat));
+            dispatch(deleteConversation(id));
+        } else {
+            dispatch(deleteConversation(id));
+        }
     };
 
     const updateConversation = (id: string, updates: Partial<Conversation>) => {
-        setConversations(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+        dispatch(reduxUpdateConversation({ id, updates }));
     };
 
     const activeConversation = conversations.find(c => c.id === activeId) || conversations[0];
+
+    const handleSetActiveId = (id: string) => {
+        dispatch(setActiveId(id));
+    };
 
     if (!activeConversation) return null;
 
@@ -116,7 +103,7 @@ export default function FullChatApp() {
             <ChatSidebar
                 conversations={conversations}
                 activeId={activeId}
-                setActiveId={setActiveId}
+                setActiveId={handleSetActiveId}
                 onNewChat={handleNewChat}
                 onDeleteChat={handleDeleteChat}
             />
