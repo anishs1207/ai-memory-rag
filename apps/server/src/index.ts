@@ -2,6 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import path from "path";
+import { generalLimiter } from "./middleware/rateLimit.middleware.js";
 
 dotenv.config({
   path: "./.env",
@@ -9,6 +10,9 @@ dotenv.config({
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Apply general rate limit globally
+app.use(generalLimiter);
 
 app.use(
   cors({

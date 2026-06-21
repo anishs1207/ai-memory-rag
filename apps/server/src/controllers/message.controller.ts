@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { z } from "zod";
 import {runRAG, generateLegalPrompt, generateFinancePrompt} from "@/services/rag.service.js";
 import { geminiClient, parseResult, getText } from "@/utils/index.js";
 import fs from "fs";
@@ -19,39 +20,41 @@ interface EmbeddingContext {
 //@ test should work here but
 const ChatLegal = async(req: Request, res: Response) => {
     try {
-        const {prompt} = req.body;
+        const schema = z.object({
+            prompt: z.string().min(1, "Prompt is required"),
+        });
+        const { prompt } = schema.parse(req.body);
 
-    if (!prompt) {
-        return res.status(400).json({
-            success: false,
-            error: "Prompt is not given"
+        const embeddingContexts: EmbeddingContext[] = await runRAG(prompt, "./vector-db/legal-vector-db");
+
+        console.log("context:", embeddingContexts);
+
+        const bigPrompt = generateLegalPrompt(prompt, embeddingContexts);
+        
+        const aiResponse = await geminiClient(bigPrompt);
+
+        if (!aiResponse) {
+            return res.status(400).json({
+                success: false,
+                error: "AI Response is not given"
+            })
+        }
+
+        const result = parseResult(aiResponse);
+        const responseText = typeof result === 'string' ? result : (result.response || JSON.stringify(result));
+
+        return res.status(200).json({
+            success: true,
+            data: responseText
         })
-    }
-
-    const embeddingContexts: EmbeddingContext[] = await runRAG(prompt, "./vector-db/legal-vector-db");
-
-    console.log("context:", embeddingContexts);
-
-    const bigPrompt = generateLegalPrompt(prompt, embeddingContexts);
-    
-    const aiResponse = await geminiClient(bigPrompt);
-
-    if (!aiResponse) {
-        return res.status(400).json({
-            success: false,
-            error: "AI Response is not given"
-        })
-    }
-
-    const result = parseResult(aiResponse);
-    const responseText = typeof result === 'string' ? result : (result.response || JSON.stringify(result));
-
-    return res.status(200).json({
-        success: true,
-        data: responseText
-    })
 
     } catch(err: any) {
+        if (err instanceof z.ZodError) {
+            return res.status(400).json({
+                success: false,
+                error: err.issues[0]?.message || "Validation Error"
+            });
+        }
         console.error("ChatLegal Error:", err)
         return res.status(500).json({
             success: false,
@@ -63,14 +66,10 @@ const ChatLegal = async(req: Request, res: Response) => {
 
 const ChatFinance = async(req: Request, res: Response) => {
     try {
-        const {prompt} = req.body;
-
-        if (!prompt) {
-            return res.status(400).json({
-                success: false,
-                error: "Prompt is not given"
-            })
-        }
+        const schema = z.object({
+            prompt: z.string().min(1, "Prompt is required"),
+        });
+        const { prompt } = schema.parse(req.body);
 
         const embeddingContexts: EmbeddingContext[] = await runRAG(prompt, "./vector-db/finance-vector-db");
 
@@ -96,6 +95,12 @@ const ChatFinance = async(req: Request, res: Response) => {
         })
        
     } catch(err: any) {
+        if (err instanceof z.ZodError) {
+            return res.status(400).json({
+                success: false,
+                error: err.issues[0]?.message || "Validation Error"
+            });
+        }
         console.error("ChatFinance Error:", err)
         return res.status(500).json({
             success: false,
@@ -106,14 +111,10 @@ const ChatFinance = async(req: Request, res: Response) => {
 
 const ChatGeneral = async(req: Request, res: Response) => {
     try {
-        const {prompt} = req.body;
-
-        if (!prompt) {
-            return res.status(400).json({
-                success: false,
-                error: "Prompt is not given"
-            })
-        }
+        const schema = z.object({
+            prompt: z.string().min(1, "Prompt is required"),
+        });
+        const { prompt } = schema.parse(req.body);
 
         const bigPrompt = `
           <agent>
@@ -144,6 +145,12 @@ const ChatGeneral = async(req: Request, res: Response) => {
         })
 
     } catch(err: any) {
+        if (err instanceof z.ZodError) {
+            return res.status(400).json({
+                success: false,
+                error: err.issues[0]?.message || "Validation Error"
+            });
+        }
         console.error("ChatGeneral Error:", err)
         return res.status(500).json({
             success: false,
@@ -266,14 +273,13 @@ const queryMessageFromFile = async (
   res: Response
 ) => {
   try {
-    const { fileName, prompt, topK = 5, legalMode = false } = req.body;
-
-    if (!fileName || !prompt) {
-      return res.status(400).json({
-        success: false,
-        error: "fileName and prompt are required",
-      });
-    }
+    const schema = z.object({
+        fileName: z.string().min(1, "fileName is required"),
+        prompt: z.string().min(1, "prompt is required"),
+        topK: z.number().int().min(1).optional().default(5),
+        legalMode: z.boolean().optional().default(false),
+    });
+    const { fileName, prompt, topK, legalMode } = schema.parse(req.body);
 
     // 1️⃣ Embed query
     const queryEmbedding = await embedText(prompt);
@@ -345,6 +351,12 @@ const queryMessageFromFile = async (
       data: answer,
     });
   } catch (err: any) {
+    if (err instanceof z.ZodError) {
+        return res.status(400).json({
+            success: false,
+            error: err.issues[0]?.message || "Validation Error"
+        });
+    }
     console.error("RAG query error:", err);
     return res.status(500).json({
       success: false,

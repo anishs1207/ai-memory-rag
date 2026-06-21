@@ -4,6 +4,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { Router } from "express";
+import { aiEndpointsLimiter } from "../middleware/rateLimit.middleware.js";
 import {
   // Session
   createMemorySession,
@@ -92,7 +93,7 @@ router.post("/kg/:userId/decay", applyMemoryDecay);
 router.post("/recall", recallMemoryForQuery);
 router.post("/consolidate", consolidateMemoryForSession);
 router.post("/extract", extractMemoryFromText);
-router.post("/chat", memoryChat);
+router.post("/chat", aiEndpointsLimiter, memoryChat);
 
 // ─── Stats Route ──────────────────────────────────────────────────────────────
 // GET /api/v1/memory/stats/:userId  → Aggregate memory stats

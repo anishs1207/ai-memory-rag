@@ -167,10 +167,10 @@ Return ONLY a JSON array of objects.
 
 export const conductElection = async (req: Request, res: Response) => {
   try {
-    const { agents } = req.body;
-    if (!Array.isArray(agents)) {
-      return res.status(400).json({ success: false, error: "Agents array is required" });
-    }
+    const schema = z.object({
+      agents: z.array(agentSchema),
+    });
+    const { agents } = schema.parse(req.body);
 
     const electionPrompt = `
 Conduct a simulated election among these AI agents:
@@ -210,6 +210,9 @@ Return ONLY a JSON array of objects with: voterId, votedForId, reason.
       topLeaders,
     });
   } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ success: false, error: err.issues[0]?.message || "Validation Error" });
+    }
     console.error("conductElection error:", err);
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -217,13 +220,16 @@ Return ONLY a JSON array of objects with: voterId, votedForId, reason.
 
 export const takeActionOnIssue = async (req: Request, res: Response) => {
   try {
-    const { agents, top5Panel, chosenLeader, userTopic } = req.body;
-    if (!agents || !top5Panel || !chosenLeader) {
-      return res.status(400).json({ success: false, error: "Missing required fields" });
-    }
+    const schema = z.object({
+      agents: z.array(agentSchema),
+      top5Panel: z.array(agentSchema),
+      chosenLeader: agentSchema,
+      userTopic: z.string().optional().default("General Governance"),
+    });
+    const { agents, top5Panel, chosenLeader, userTopic } = schema.parse(req.body);
 
     const issuePrompt = `
-Generate a complex, high-stakes crisis or policy issue related to: ${userTopic || "General Governance"}.
+Generate a complex, high-stakes crisis or policy issue related to: ${userTopic}.
 The issue should have three distinct, conflicting paths of action.
 
 Return ONLY a JSON object:
@@ -300,6 +306,9 @@ Return ONLY a JSON object:
       outcome
     });
   } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ success: false, error: err.issues[0]?.message || "Validation Error" });
+    }
     console.error("takeActionOnIssue error:", err);
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -307,7 +316,27 @@ Return ONLY a JSON object:
 
 export const generateNews = async (req: Request, res: Response) => {
   try {
-    const { finalAction, outcome, issue } = req.body;
+    const schema = z.object({
+      finalAction: z.object({
+        id: z.string(),
+        label: z.string(),
+        description: z.string(),
+      }),
+      outcome: z.object({
+        outcome: z.string(),
+        approvalChange: z.number(),
+        consequence: z.string(),
+      }),
+      issue: z.object({
+        issue: z.string(),
+        actions: z.array(z.object({
+          id: z.string(),
+          label: z.string(),
+          description: z.string(),
+        })),
+      }),
+    });
+    const { finalAction, outcome, issue } = schema.parse(req.body);
     
     const prompt = `
 Generate 3 dramatic news headlines from different media outlets (e.g., State Media, Rebel Underground, Corporate News) reacting to the following event:
@@ -323,6 +352,9 @@ Return ONLY a JSON array of objects with keys: "outlet" (string), "headline" (st
     
     return res.status(200).json({ success: true, news });
   } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ success: false, error: err.issues[0]?.message || "Validation Error" });
+    }
     console.error("generateNews error:", err);
     return res.status(500).json({ success: false, error: err.message });
   }

@@ -4,17 +4,18 @@ import { uploadMiddleware } from "@/middleware/multer.middleware.js";
 import { geminiClient, getText } from "@/utils/index.js";
 import { generateResearchPDF } from "@/utils/pdf-gen.js";
 import { randomUUID } from "crypto";
+import { aiEndpointsLimiter, fileUploadLimiter } from "../middleware/rateLimit.middleware.js";
 
 const router = Router();
 
-router.route("/general").post(ChatGeneral);
-router.route("/legal").post(ChatLegal);
-router.route("/finance").post(ChatFinance);
-router.route("/upload-file").post(uploadMiddleware, uploadFile);
-router.route("/chat-file").post(queryMessageFromFile);
+router.route("/general").post(aiEndpointsLimiter, ChatGeneral);
+router.route("/legal").post(aiEndpointsLimiter, ChatLegal);
+router.route("/finance").post(aiEndpointsLimiter, ChatFinance);
+router.route("/upload-file").post(fileUploadLimiter, uploadMiddleware, uploadFile);
+router.route("/chat-file").post(aiEndpointsLimiter, queryMessageFromFile);
 router.route("/get-files").get(getFiles);
-router.route("/budget").post((req, res) => res.status(200).json({ success: true, message: "Budget context received" }));
-router.route("/research").post(async (req, res) => {
+router.route("/budget").post(aiEndpointsLimiter, (req, res) => res.status(200).json({ success: true, message: "Budget context received" }));
+router.route("/research").post(aiEndpointsLimiter, async (req, res) => {
     const { topic } = req.body;
     try {
         const researchPrompt = `Generate a research document in LaTeX format about: ${topic}. Include sections like Abstract, Introduction, Methodology, and Conclusion.`;
