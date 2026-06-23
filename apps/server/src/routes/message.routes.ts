@@ -1,5 +1,5 @@
 import { Router } from "express";
-import {ChatFinance, ChatLegal, ChatGeneral, uploadFile, queryMessageFromFile, getFiles} from "../controllers/message.controller.js";
+import {ChatFinance, ChatLegal, ChatGeneral, uploadFile, queryMessageFromFile, getFiles, getUploadStatus} from "../controllers/message.controller.js";
 import { uploadMiddleware } from "@/middleware/multer.middleware.js";
 import { geminiClient, getText } from "@/utils/index.js";
 import { generateResearchPDF } from "@/utils/pdf-gen.js";
@@ -12,6 +12,7 @@ router.route("/general").post(aiEndpointsLimiter, ChatGeneral);
 router.route("/legal").post(aiEndpointsLimiter, ChatLegal);
 router.route("/finance").post(aiEndpointsLimiter, ChatFinance);
 router.route("/upload-file").post(fileUploadLimiter, uploadMiddleware, uploadFile);
+router.route("/upload-status/:jobId").get(getUploadStatus);
 router.route("/chat-file").post(aiEndpointsLimiter, queryMessageFromFile);
 router.route("/get-files").get(getFiles);
 router.route("/budget").post(aiEndpointsLimiter, (req, res) => res.status(200).json({ success: true, message: "Budget context received" }));

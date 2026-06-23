@@ -3,6 +3,8 @@ import dotenv from "dotenv";
 import cors from "cors";
 import path from "path";
 import { generalLimiter } from "./middleware/rateLimit.middleware.js";
+import "@/workers/documentWorker.js"; // Starts the BullMQ worker
+
 
 dotenv.config({
   path: "./.env",

@@ -36,6 +36,11 @@ tasks:
     cmds:
       - task -t apps/docs/Taskfile.yml start
 
+  redis:start:
+    desc: Start Redis service using docker-compose
+    cmds:
+      - docker-compose up -d redis
+
   all:start:
     desc: Start all services locally (dev mode)
-    deps: [server:start, image-be:start, web:start, docs:start]
+    deps: [redis:start, server:start, image-be:start, web:start, docs:start]

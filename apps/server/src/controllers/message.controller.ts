@@ -161,17 +161,19 @@ const ChatGeneral = async(req: Request, res: Response) => {
 
 // refer: https://app.pinecone.io/organizations/-OkIhbKdrSTCm9S_ivLE/projects/8d67056d-52d7-414d-b0c6-5a8d155d0840/keys
 // Lazy singleton: instantiated on first use so dotenv has already run
-let _pinecone: Pinecone | null = null;
-function getPinecone(): Pinecone {
+import { documentQueue } from "@/lib/queue.js";
+
+export let _pinecone: Pinecone | null = null;
+export function getPinecone(): Pinecone {
   if (!_pinecone) {
     _pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY! });
   }
   return _pinecone;
 }
 
-const INDEX_NAME = "documents";
+export const INDEX_NAME = "documents";
 
-async function readFileContent(filePath: string): Promise<string> {
+export async function readFileContent(filePath: string): Promise<string> {
   const ext = path.extname(filePath).toLowerCase();
 
   if (ext === ".pdf") {
@@ -185,7 +187,7 @@ async function readFileContent(filePath: string): Promise<string> {
   }
 }
 
-function chunkText(text: string, chunkSize = 800, overlap = 100): string[] {
+export function chunkText(text: string, chunkSize = 800, overlap = 100): string[] {
   const chunks: string[] = [];
   let i = 0;
   while (i < text.length) {
@@ -204,55 +206,60 @@ async function uploadFile(req: Request, res: Response) {
       const filePath = req.file.path;
       const fileName = req.file.originalname;
 
-      const content = await readFileContent(filePath);
-      const chunks = chunkText(content);
-
-      const index = getPinecone().index(INDEX_NAME);
-
-      for (let i = 0; i < chunks.length; i++) {
-        const textToEmbed = chunks[i] || "";
-        const vector = await embedText(textToEmbed);
-
-        await index.upsert([
-          {
-            id: randomUUID(),
-            values: vector,
-            metadata: {
-              fileName: fileName as string,
-              chunkIndex: i,
-              text: textToEmbed,
-            },
-          },
-        ]);
-      }
-
-      // Optional: delete uploaded file after processing
-      fs.unlinkSync(filePath);
-
-      // Track uploaded file
-      const filesPath = path.join(process.cwd(), "uploads", "files.json");
-      let files = [];
-      if (fs.existsSync(filesPath)) {
-        files = JSON.parse(fs.readFileSync(filesPath, "utf-8"));
-      }
-      if (!files.includes(fileName)) {
-        files.push(fileName);
-        fs.writeFileSync(filesPath, JSON.stringify(files, null, 2));
-      }
+      // Add task to background queue
+      const job = await documentQueue.add("index-file", {
+        filePath,
+        fileName,
+      });
 
       return res.status(200).json({
         success: true,
-        message: `File "${fileName}" uploaded and indexed successfully!`,
-        chunksIndexed: chunks.length,
+        message: `File "${fileName}" uploaded and queued for indexing successfully!`,
+        jobId: job.id,
+        fileName,
       });
     } catch (err: any) {
-      console.error("Error uploading file:", err);
+      console.error("Error queueing upload file:", err);
       if (req.file && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (_) {}
       }
       return res.status(500).json({ success: false, error: err.message });
     }
 }
+
+async function getUploadStatus(req: Request, res: Response) {
+  try {
+    const { jobId } = req.params;
+    if (!jobId || typeof jobId !== "string") {
+      return res.status(400).json({ success: false, error: "Job ID is required and must be a string" });
+    }
+
+    const job = await documentQueue.getJob(jobId);
+    if (!job) {
+      return res.status(404).json({ success: false, error: "Job not found" });
+    }
+
+    const state = await job.getState();
+    const progress = job.progress || { processed: 0, total: 0, percentage: 0 };
+    const failedReason = job.failedReason;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        jobId: job.id,
+        state,
+        progress,
+        failedReason,
+      },
+    });
+  } catch (err: any) {
+    console.error("Error getting upload status:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
 
 type RAGResult = {
   answer: string;
@@ -507,7 +514,7 @@ async function getFiles(req: Request, res: Response) {
     }
 }
 
-export {ChatFinance, ChatLegal, ChatGeneral, queryMessageFromFile, uploadFile, getFiles};
+export {ChatFinance, ChatLegal, ChatGeneral, queryMessageFromFile, uploadFile, getFiles, getUploadStatus};
 
 // In Landing AI’s Agentic Document Extraction (Agent Document Extraction), Parse, Extract, and Split are three different stages/operations in the document understanding pipeline. They sound similar, but they solve different problems.
 

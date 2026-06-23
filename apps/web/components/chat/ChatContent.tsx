@@ -48,6 +48,7 @@ import {
     Zap,
     ChevronDown,
     ChevronUp,
+    X,
 } from "lucide-react"
 import { useRef, useState } from "react"
 import axios from "axios"
@@ -95,6 +96,15 @@ type Conversation = {
     messages: ChatMessage[];
     selectedFile?: string;
     timestamp: number;
+};
+
+type UploadQueueItem = {
+    id: string;
+    fileName: string;
+    status: "uploading" | "queued" | "indexing" | "completed" | "failed";
+    progress: number;
+    jobId?: string;
+    error?: string;
 };
 
 const SERVER_URL = "http://localhost:3001";
@@ -181,6 +191,7 @@ export default function ChatContent({
     const [prompt, setPrompt] = useState("")
     const [isLoading, setIsLoading] = useState(false)
     const [uploading, setUploading] = useState(false)
+    const [uploadQueue, setUploadQueue] = useState<UploadQueueItem[]>([])
     const [isResearching, setIsResearching] = useState(false)
     const [showReasoning, setShowReasoning] = useState<Record<string, boolean>>({})
     const [showBudget, setShowBudget] = useState(false)
@@ -289,35 +300,119 @@ export default function ChatContent({
         }
     }
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    const pollJobStatus = (queueId: string, jobId: string) => {
+        const interval = setInterval(async () => {
+            try {
+                const res = await axios.get<{
+                    success: boolean;
+                    data: {
+                        jobId: string;
+                        state: string;
+                        progress: { processed: number; total: number; percentage: number };
+                        failedReason?: string;
+                    }
+                }>(`${SERVER_URL}/api/v1/message/upload-status/${jobId}`);
 
-        const formData = new FormData();
-        formData.append("file", file);
+                if (res.data.success) {
+                    const { state, progress, failedReason } = res.data.data;
+                    
+                    setUploadQueue(prev => prev.map(item => {
+                        if (item.id === queueId) {
+                            if (state === "completed") {
+                                clearInterval(interval);
+                                fetchFiles().then(() => {
+                                    if (!conversation.selectedFile) {
+                                        updateConversation(conversation.id, {
+                                            model: "pdf",
+                                            selectedFile: item.fileName
+                                        });
+                                    }
+                                });
+                                return { ...item, status: "completed", progress: 100 };
+                            } else if (state === "failed") {
+                                clearInterval(interval);
+                                return { ...item, status: "failed", error: failedReason || "Indexing failed" };
+                            } else {
+                                const currentProgress = typeof progress === 'object' && progress !== null ? (progress.percentage || 0) : 0;
+                                return { 
+                                    ...item, 
+                                    status: state === "active" ? "indexing" : "queued", 
+                                    progress: Math.max(10, currentProgress) 
+                                };
+                            }
+                        }
+                        return item;
+                    }));
+                }
+            } catch (err: any) {
+                console.error("Polling job status failed", err);
+                clearInterval(interval);
+                setUploadQueue(prev => prev.map(item => 
+                    item.id === queueId ? { ...item, status: "failed", error: "Failed to fetch status" } : item
+                ));
+            }
+        }, 1500);
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFiles = e.target.files;
+        if (!selectedFiles || selectedFiles.length === 0) return;
+
+        const filesToUpload = Array.from(selectedFiles);
+        if (fileInputRef.current) fileInputRef.current.value = "";
 
         setUploading(true);
-        try {
-            const res = await axios.post<{
-                success: boolean;
-                data?: any;
-                error?: string;
-            }>(`${SERVER_URL}/api/v1/message/upload-file`, formData, {
-                headers: { "Content-Type": "multipart/form-data" },
-            });
-            if (res.data.success) {
-                await fetchFiles();
-                updateConversation(conversation.id, {
-                    model: "pdf",
-                    selectedFile: file.name
-                });
+        for (const file of filesToUpload) {
+            const queueId = Date.now().toString() + Math.random().toString().substring(2, 6);
+            
+            const newItem: UploadQueueItem = {
+                id: queueId,
+                fileName: file.name,
+                status: "uploading",
+                progress: 10,
+            };
+            setUploadQueue(prev => [newItem, ...prev]);
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                const res = await axios.post<{
+                    success: boolean;
+                    jobId?: string;
+                    error?: string;
+                }>(`${SERVER_URL}/api/v1/message/upload-file`, formData, {
+                    headers: { "Content-Type": "multipart/form-data" },
+                    onUploadProgress: (progressEvent: any) => {
+                        const uploadPercent = progressEvent.total
+                            ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
+                            : 50;
+                        setUploadQueue(prev => prev.map(item => 
+                            item.id === queueId ? { ...item, progress: Math.min(90, uploadPercent) } : item
+                        ));
+                    }
+                } as any);
+
+                if (res.data.success && res.data.jobId) {
+                    const jobId = res.data.jobId;
+                    setUploadQueue(prev => prev.map(item => 
+                        item.id === queueId ? { ...item, status: "queued", jobId, progress: 95 } : item
+                    ));
+                    pollJobStatus(queueId, jobId);
+                } else {
+                    setUploadQueue(prev => prev.map(item => 
+                        item.id === queueId ? { ...item, status: "failed", error: res.data.error || "Queueing failed" } : item
+                    ));
+                }
+            } catch (err: any) {
+                console.error("Upload failed for file: " + file.name, err);
+                const errMsg = err.response?.data?.error || err.message || "Network error";
+                setUploadQueue(prev => prev.map(item => 
+                    item.id === queueId ? { ...item, status: "failed", error: errMsg } : item
+                ));
             }
-        } catch (err: any) {
-            console.error("Upload failed", err);
-        } finally {
-            setUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = "";
         }
+        setUploading(false);
     };
 
     const handleResearch = async (topic?: string, baseMessages?: ChatMessage[]) => {
@@ -371,6 +466,7 @@ export default function ChatContent({
                             onChange={handleFileUpload}
                             className="hidden"
                             accept=".pdf,.txt,.md"
+                            multiple
                         />
                         <Button
                             data-tour="chat-upload"
@@ -650,6 +746,61 @@ export default function ChatContent({
                 </div>
             </div>
             <BudgetModal open={showBudget} onOpenChange={setShowBudget} />
+            {uploadQueue.length > 0 && (
+                <div className="fixed bottom-4 right-4 z-50 w-80 rounded-xl border bg-card text-card-foreground shadow-2xl animate-in slide-in-from-bottom-5">
+                    <div className="flex items-center justify-between border-b px-4 py-2.5">
+                        <div className="flex items-center gap-2">
+                            <Upload className="size-4 text-primary animate-pulse" />
+                            <span className="text-xs font-bold tracking-tight">Upload Queue ({uploadQueue.filter(q => q.status !== 'completed' && q.status !== 'failed').length} active)</span>
+                        </div>
+                        <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-6 w-6 rounded-full cursor-pointer hover:bg-muted" 
+                            onClick={() => setUploadQueue([])}
+                        >
+                            <X className="size-3" />
+                        </Button>
+                    </div>
+                    <div className="max-h-60 overflow-y-auto p-3 space-y-2.5 no-scrollbar">
+                        {uploadQueue.map((item) => (
+                            <div key={item.id} className="space-y-1">
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-[11px] font-medium truncate max-w-[180px]">{item.fileName}</span>
+                                    <Badge 
+                                        variant="outline" 
+                                        className={cn(
+                                            "text-[8px] h-4 py-0 px-1.5 uppercase font-mono tracking-tighter",
+                                            item.status === 'completed' && "bg-green-500/10 text-green-600 border-green-500/20",
+                                            item.status === 'failed' && "bg-red-500/10 text-red-600 border-red-500/20",
+                                            item.status === 'indexing' && "bg-purple-500/10 text-purple-600 border-purple-500/20 animate-pulse",
+                                            item.status === 'uploading' && "bg-blue-500/10 text-blue-600 border-blue-500/20",
+                                            item.status === 'queued' && "bg-yellow-500/10 text-yellow-600 border-yellow-500/20"
+                                        )}
+                                    >
+                                        {item.status}
+                                    </Badge>
+                                </div>
+                                <div className="relative w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                                    <div 
+                                        className={cn(
+                                            "h-full rounded-full transition-all duration-300",
+                                            item.status === 'completed' ? "bg-green-500" :
+                                            item.status === 'failed' ? "bg-red-500" :
+                                            item.status === 'indexing' ? "bg-purple-500" :
+                                            "bg-primary"
+                                        )}
+                                        style={{ width: `${item.progress}%` }}
+                                    />
+                                </div>
+                                {item.error && (
+                                    <p className="text-[9px] text-destructive leading-tight">{item.error}</p>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </main >
     )
 }
