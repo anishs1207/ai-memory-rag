@@ -79,6 +79,9 @@ func main() {
 	scheduler.StartMetricsAutoscaler(shutdownContext, observability, jobQueue)
 	// Start async job processors.
 	jobQueue.Start(shutdownContext)
+	// Start the active background reconciliation loop to self-heal crashed replicas.
+	scheduler.StartReconcilerLoop(shutdownContext)
+
 
 	// 12. Instantiate ServeMux and register all API endpoint routes.
 	serveMux := http.NewServeMux()

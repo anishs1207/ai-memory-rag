@@ -81,6 +81,7 @@ func (s *APIServer) RegisterRoutes(serveMux *http.ServeMux) {
 
 	// Cluster Nodes
 	serveMux.HandleFunc("GET /api/nodes", s.handleGetNodes)
+	serveMux.HandleFunc("POST /api/nodes/{id}/status", s.handleSetNodeStatus)
 
 	// Secrets Manager
 	serveMux.HandleFunc("POST /api/secrets", s.handleSetSecret)
@@ -444,6 +445,40 @@ func (s *APIServer) handleRegisterManifest(responseWriter http.ResponseWriter, r
 // handleGetNodes returns all cluster nodes and resource stats.
 func (s *APIServer) handleGetNodes(responseWriter http.ResponseWriter, request *http.Request) {
 	s.respondWithJSON(responseWriter, http.StatusOK, s.nodeManager.GetNodes())
+}
+
+// handleSetNodeStatus updates a node's operational status and triggers rescheduling if appropriate.
+func (s *APIServer) handleSetNodeStatus(responseWriter http.ResponseWriter, request *http.Request) {
+	nodeID := request.PathValue("id")
+	if nodeID == "" {
+		s.respondWithError(responseWriter, http.StatusBadRequest, "Missing node ID in path")
+		return
+	}
+
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+		s.respondWithError(responseWriter, http.StatusBadRequest, "Invalid JSON payload")
+		return
+	}
+
+	nodeStatus := NodeStatus(body.Status)
+	if nodeStatus != NodeStatusActive && nodeStatus != NodeStatusDraining && nodeStatus != NodeStatusOffline {
+		s.respondWithError(responseWriter, http.StatusBadRequest, "Invalid status. Allowed values: ACTIVE, DRAINING, OFFLINE")
+		return
+	}
+
+	err := s.scheduler.SetNodeStatusAndReconcile(nodeID, nodeStatus)
+	if err != nil {
+		s.respondWithError(responseWriter, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	s.respondWithJSON(responseWriter, http.StatusOK, map[string]interface{}{
+		"status":  "success",
+		"message": fmt.Sprintf("Successfully updated node %s status to %s", nodeID, nodeStatus),
+	})
 }
 
 // handleSetSecret creates or updates a secret key-value.

@@ -7,6 +7,15 @@ import (
 	"sync"
 )
 
+// NodeStatus represents the operational and scheduling status of a simulated host node.
+type NodeStatus string
+
+const (
+	NodeStatusActive   NodeStatus = "ACTIVE"
+	NodeStatusDraining NodeStatus = "DRAINING"
+	NodeStatusOffline  NodeStatus = "OFFLINE"
+)
+
 // Node represents a simulated host machine within the AgentOS cluster fleet.
 type Node struct {
 	ID                   string          `json:"id"`
@@ -18,6 +27,7 @@ type Node struct {
 	CPUUsagePercentage   float64         `json:"cpu_usage_percentage"` // Simulated dynamic load
 	BaselineCPU          float64         `json:"baseline_cpu"`         // Baseline load when idle
 	ActiveInstances      map[string]bool `json:"active_instances"`     // Set of instance IDs scheduled here
+	Status               NodeStatus      `json:"status"`               // Node operational status (ACTIVE, DRAINING, OFFLINE)
 	nodeLock             sync.Mutex
 }
 
@@ -48,6 +58,7 @@ func (nm *NodeManager) seedDefaultNodes() {
 		BaselineCPU:          80.0,
 		CPUUsagePercentage:   80.0,
 		ActiveInstances:      make(map[string]bool),
+		Status:               NodeStatusActive,
 	}
 
 	// Node B: Low load baseline in us-east-1 with GPU
@@ -61,6 +72,7 @@ func (nm *NodeManager) seedDefaultNodes() {
 		BaselineCPU:          20.0,
 		CPUUsagePercentage:   20.0,
 		ActiveInstances:      make(map[string]bool),
+		Status:               NodeStatusActive,
 	}
 
 	// Node C: Low load baseline in us-west-2, CPU-only
@@ -74,6 +86,7 @@ func (nm *NodeManager) seedDefaultNodes() {
 		BaselineCPU:          10.0,
 		CPUUsagePercentage:   10.0,
 		ActiveInstances:      make(map[string]bool),
+		Status:               NodeStatusActive,
 	}
 }
 
@@ -100,7 +113,13 @@ func (nm *NodeManager) ScheduleInstance(manifest *AgentManifest) (string, error)
 	for _, node := range nm.nodes {
 		node.nodeLock.Lock()
 		
-		// 1. Filter by Region if specified
+		// 1. Filter by Node Status (only schedule on Active nodes)
+		if node.Status != NodeStatusActive {
+			node.nodeLock.Unlock()
+			continue
+		}
+
+		// 2. Filter by Region if specified
 		if manifest.Placement != nil && manifest.Placement.Region != "" {
 			if node.Region != manifest.Placement.Region {
 				node.nodeLock.Unlock()
@@ -108,7 +127,7 @@ func (nm *NodeManager) ScheduleInstance(manifest *AgentManifest) (string, error)
 			}
 		}
 
-		// 2. Filter by GPU capability if requested
+		// 3. Filter by GPU capability if requested
 		if manifest.Placement != nil && manifest.Placement.GPU {
 			if !node.HasGPU {
 				node.nodeLock.Unlock()
@@ -116,7 +135,7 @@ func (nm *NodeManager) ScheduleInstance(manifest *AgentManifest) (string, error)
 			}
 		}
 
-		// 3. Filter by Memory requirements
+		// 4. Filter by Memory requirements
 		if manifest.Placement != nil && manifest.Placement.Memory != "" {
 			requiredBytes, err := parseMemoryString(manifest.Placement.Memory)
 			if err == nil {
@@ -128,7 +147,7 @@ func (nm *NodeManager) ScheduleInstance(manifest *AgentManifest) (string, error)
 			}
 		}
 
-		// 4. Choose the node with the lowest current CPU load
+		// 5. Choose the node with the lowest current CPU load
 		if node.CPUUsagePercentage < minimumCPULoad {
 			minimumCPULoad = node.CPUUsagePercentage
 			selectedNode = node
@@ -207,6 +226,24 @@ func (nm *NodeManager) ReleaseResources(nodeID string, instanceID string) {
 		}
 		fmt.Printf("[Scheduler Placement] Released instance %s from Node %s. CPU Load is now %.1f%%\n", instanceID, nodeID, node.CPUUsagePercentage)
 	}
+}
+
+// SetNodeStatus updates a node's operational state dynamically in the manager.
+func (nm *NodeManager) SetNodeStatus(nodeID string, status NodeStatus) error {
+	nm.nodeLock.Lock()
+	node, exists := nm.nodes[nodeID]
+	nm.nodeLock.Unlock()
+
+	if !exists {
+		return fmt.Errorf("node %s not found", nodeID)
+	}
+
+	node.nodeLock.Lock()
+	node.Status = status
+	node.nodeLock.Unlock()
+
+	fmt.Printf("[Node Manager] Node %s status updated to %s\n", nodeID, status)
+	return nil
 }
 
 // Helper to convert strings like "16Gi", "512Mi" to byte counts.

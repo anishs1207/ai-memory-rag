@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -62,11 +63,24 @@ func (pa *PortAllocator) Allocate() (int, error) {
 
 	for port := pa.startPort; port <= pa.endPort; port++ {
 		if !pa.usedPorts[port] {
-			pa.usedPorts[port] = true
-			return port, nil
+			// Check if the port is physically available at the OS level
+			if isPortOSAvailable(port) {
+				pa.usedPorts[port] = true
+				return port, nil
+			}
 		}
 	}
 	return 0, fmt.Errorf("no available ports in the range %d-%d", pa.startPort, pa.endPort)
+}
+
+// isPortOSAvailable performs a brief TCP listen attempt to verify if a port is free on the host.
+func isPortOSAvailable(port int) bool {
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		return false
+	}
+	listener.Close()
+	return true
 }
 
 // Release returns a port back to the pool.

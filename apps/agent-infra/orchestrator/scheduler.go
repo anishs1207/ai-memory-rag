@@ -516,3 +516,83 @@ func (s *Scheduler) StopAll() {
 	waitGroup.Wait()
 }
 
+// SetNodeStatusAndReconcile updates node status and evicts replicas if status is DRAINING or OFFLINE.
+func (s *Scheduler) SetNodeStatusAndReconcile(nodeID string, status NodeStatus) error {
+	// 1. Update status in NodeManager
+	err := s.nodeManager.SetNodeStatus(nodeID, status)
+	if err != nil {
+		return err
+	}
+
+	// 2. If status is DRAINING or OFFLINE, evict and reschedule instances
+	if status == NodeStatusDraining || status == NodeStatusOffline {
+		fmt.Printf("[Scheduler] Node %s is %s. Evicting scheduled agent replicas...\n", nodeID, status)
+		
+		s.lock.RLock()
+		// Identify which deployments are affected
+		affectedDeployments := make(map[string]bool)
+		for name, dep := range s.deployments {
+			dep.lock.Lock()
+			var remainingInstances []*AgentInstance
+			for _, inst := range dep.Instances {
+				if inst.NodeID == nodeID {
+					fmt.Printf("[Scheduler] Evicting instance %s of agent %s from node %s\n", inst.ID, name, nodeID)
+					inst.Stop()
+					s.nodeManager.ReleaseResources(nodeID, inst.ID)
+					affectedDeployments[name] = true
+				} else {
+					remainingInstances = append(remainingInstances, inst)
+				}
+			}
+			dep.Instances = remainingInstances
+			dep.lock.Unlock()
+		}
+		s.lock.RUnlock()
+
+		// Reconcile each affected deployment to trigger rescheduling on other nodes
+		for name := range affectedDeployments {
+			fmt.Printf("[Scheduler] Triggering reconcile for agent %s after node eviction\n", name)
+			s.Reconcile(name)
+		}
+	}
+
+	return nil
+}
+
+// StartReconcilerLoop spawns a periodic checker loop that reconciles all deployments.
+// This is critical for self-healing: if an agent process crashes or is killed externally,
+// the scheduler automatically detects the loss and launches a new healthy replacement replica.
+func (s *Scheduler) StartReconcilerLoop(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Second)
+	go func() {
+		fmt.Println("[Scheduler] Background self-healing Reconciler Loop initialized")
+		for {
+			select {
+			case <-ctx.Done():
+				ticker.Stop()
+				fmt.Println("[Scheduler] Background self-healing Reconciler Loop stopped")
+				return
+			case <-ticker.C:
+				s.reconcileAllDeployments()
+			}
+		}
+	}()
+}
+
+// reconcileAllDeployments scans all registered deployment names and runs individual Reconcile operations.
+func (s *Scheduler) reconcileAllDeployments() {
+	s.lock.RLock()
+	// Copy deployment names under a read-lock to avoid holding the lock while running Reconcile
+	deploymentNames := make([]string, 0, len(s.deployments))
+	for name := range s.deployments {
+		deploymentNames = append(deploymentNames, name)
+	}
+	s.lock.RUnlock()
+
+	for _, deploymentName := range deploymentNames {
+		s.Reconcile(deploymentName)
+	}
+}
+
+
+
