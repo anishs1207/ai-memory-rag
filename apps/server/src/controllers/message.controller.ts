@@ -22,8 +22,9 @@ const ChatLegal = async(req: Request, res: Response) => {
     try {
         const schema = z.object({
             prompt: z.string().min(1, "Prompt is required"),
+            llm: z.string().optional(),
         });
-        const { prompt } = schema.parse(req.body);
+        const { prompt, llm } = schema.parse(req.body);
 
         const embeddingContexts: EmbeddingContext[] = await runRAG(prompt, "./vector-db/legal-vector-db");
 
@@ -31,7 +32,7 @@ const ChatLegal = async(req: Request, res: Response) => {
 
         const bigPrompt = generateLegalPrompt(prompt, embeddingContexts);
         
-        const aiResponse = await geminiClient(bigPrompt);
+        const aiResponse = await geminiClient(bigPrompt, llm);
 
         if (!aiResponse) {
             return res.status(400).json({
@@ -68,8 +69,9 @@ const ChatFinance = async(req: Request, res: Response) => {
     try {
         const schema = z.object({
             prompt: z.string().min(1, "Prompt is required"),
+            llm: z.string().optional(),
         });
-        const { prompt } = schema.parse(req.body);
+        const { prompt, llm } = schema.parse(req.body);
 
         const embeddingContexts: EmbeddingContext[] = await runRAG(prompt, "./vector-db/finance-vector-db");
 
@@ -77,7 +79,7 @@ const ChatFinance = async(req: Request, res: Response) => {
 
         const bigPrompt = generateFinancePrompt(prompt, embeddingContexts);
         
-        const aiResponse = await geminiClient(bigPrompt);
+        const aiResponse = await geminiClient(bigPrompt, llm);
 
         if (!aiResponse) {
             return res.status(400).json({
@@ -113,8 +115,9 @@ const ChatGeneral = async(req: Request, res: Response) => {
     try {
         const schema = z.object({
             prompt: z.string().min(1, "Prompt is required"),
+            llm: z.string().optional(),
         });
-        const { prompt } = schema.parse(req.body);
+        const { prompt, llm } = schema.parse(req.body);
 
         const bigPrompt = `
           <agent>
@@ -124,7 +127,7 @@ const ChatGeneral = async(req: Request, res: Response) => {
           user asked:
           ${prompt}
         `
-        const aiResponse = await geminiClient(bigPrompt);
+        const aiResponse = await geminiClient(bigPrompt, llm);
 
         console.log("apiResponse", aiResponse);
 
@@ -285,8 +288,9 @@ const queryMessageFromFile = async (
         prompt: z.string().min(1, "prompt is required"),
         topK: z.number().int().min(1).optional().default(5),
         legalMode: z.boolean().optional().default(false),
+        llm: z.string().optional(),
     });
-    const { fileName, prompt, topK, legalMode } = schema.parse(req.body);
+    const { fileName, prompt, topK, legalMode, llm } = schema.parse(req.body);
 
     // 1️⃣ Embed query
     const queryEmbedding = await embedText(prompt);
@@ -339,7 +343,7 @@ const queryMessageFromFile = async (
 `;
 
     // 5️⃣ Call Gemini
-    const aiResponse = await geminiClient(finalPrompt);
+    const aiResponse = await geminiClient(finalPrompt, llm);
     const answer = getText(aiResponse);
 
     // 6️⃣ Response

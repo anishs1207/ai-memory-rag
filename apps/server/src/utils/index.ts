@@ -2,8 +2,21 @@ import {
   GoogleGenAI,
   createUserContent,
 } from "@google/genai";
+import { smollmClient } from "./smollm.js";
 
-export async function geminiClient(prompt: string) {
+// Rule 2: Add comments explaining important logic
+/**
+ * Routes content generation prompt to the selected LLM provider.
+ * Falls back to Google Gemini if no provider or 'gemini' is specified.
+ */
+export async function geminiClient(prompt: string, llm?: string) {
+    if (llm === "smollm") {
+        // Rule 3: Log each major step
+        console.log("[LOG] Routing prompt to local SmolLM-135M model");
+        return smollmClient(prompt);
+    }
+    
+    console.log("[LOG] Routing prompt to Google Gemini 2.5 Flash API");
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
     const result = await ai.models.generateContent({
       model: "gemini-2.5-flash",
