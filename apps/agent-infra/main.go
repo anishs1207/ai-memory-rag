@@ -26,7 +26,7 @@ func main() {
 	portAllocator := orchestrator.NewPortAllocator(10000, 11000)
 
 	// --- NEW SUBSYSTEM INITIALIZATION ---
-	
+
 	// 2. Initialize simulated Node fleet
 	nodeManager := orchestrator.NewNodeManager()
 
@@ -72,7 +72,7 @@ func main() {
 	)
 
 	// --- START BACKGROUND ROUTINES ---
-	
+
 	// Monitor scale-to-zero for idle deployments.
 	scheduler.StartScaleToZeroMonitor(shutdownContext)
 	// Monitor multiple metrics (CPU, Memory, RPS, Tokens, Queue) for horizontal replica autoscaling.
@@ -81,7 +81,6 @@ func main() {
 	jobQueue.Start(shutdownContext)
 	// Start the active background reconciliation loop to self-heal crashed replicas.
 	scheduler.StartReconcilerLoop(shutdownContext)
-
 
 	// 12. Instantiate ServeMux and register all API endpoint routes.
 	serveMux := http.NewServeMux()
@@ -92,7 +91,7 @@ func main() {
 		responseWriter.Header().Set("Access-Control-Allow-Origin", "*")
 		responseWriter.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		responseWriter.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		
+
 		// Immediately return with OK status if it is an OPTIONS preflight request
 		if request.Method == "OPTIONS" {
 			responseWriter.WriteHeader(http.StatusOK)
@@ -134,4 +133,3 @@ func main() {
 
 	fmt.Println("[AgentOS] All processes terminated successfully. Shutdown complete.")
 }
-
