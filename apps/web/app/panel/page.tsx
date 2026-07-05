@@ -489,11 +489,10 @@ export default function Page() {
                                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                                         {news.map((item: any, idx: number) => (
                                                             <div key={idx} className="p-4 border rounded shadow-sm bg-card hover:shadow-md transition-shadow relative overflow-hidden">
-                                                                <div className={`absolute top-0 left-0 w-1 h-full ${
-                                                                    item.bias === "positive" ? "bg-green-500" :
-                                                                    item.bias === "negative" ? "bg-destructive" :
-                                                                    "bg-blue-500"
-                                                                }`} />
+                                                                <div className={`absolute top-0 left-0 w-1 h-full ${item.bias === "positive" ? "bg-green-500" :
+                                                                        item.bias === "negative" ? "bg-destructive" :
+                                                                            "bg-blue-500"
+                                                                    }`} />
                                                                 <p className="text-[10px] text-muted-foreground font-bold uppercase mb-2 ml-2">{item.outlet}</p>
                                                                 <h4 className="font-bold text-sm leading-tight ml-2 mb-2">"{item.headline}"</h4>
                                                                 <p className="text-xs text-muted-foreground ml-2">{item.content}</p>

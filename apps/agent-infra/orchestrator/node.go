@@ -112,7 +112,7 @@ func (nm *NodeManager) ScheduleInstance(manifest *AgentManifest) (string, error)
 
 	for _, node := range nm.nodes {
 		node.nodeLock.Lock()
-		
+
 		// 1. Filter by Node Status (only schedule on Active nodes)
 		if node.Status != NodeStatusActive {
 			node.nodeLock.Unlock()
@@ -210,7 +210,7 @@ func (nm *NodeManager) ReleaseResources(nodeID string, instanceID string) {
 
 	if _, ok := node.ActiveInstances[instanceID]; ok {
 		delete(node.ActiveInstances, instanceID)
-		
+
 		// For simplicity, release default allocation size
 		node.MemoryAllocatedBytes -= 512 * 1024 * 1024
 		if node.MemoryAllocatedBytes < 0 {

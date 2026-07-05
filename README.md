@@ -2,13 +2,6 @@
 
 > A sophisticated cognitive memory framework for AI agents, integrating short-term conversation context, long-term semantic retrieval, persistent knowledge graphs, VLM visual memory, and hands-free desktop overlays.
 
-![alt text](assets/image-4.png)
-![alt text](assets/image-3.png)
-![alt text](assets/image-1.png)
-![alt text](assets/image-2.png)
-![alt text](assets/image.png)
-
-
 ---
 
 ## 🌟 Key Features
@@ -73,5 +66,3 @@ The monorepo includes a GitHub Actions matrix workflow verifying the codebase on
 *   **Multi-OS Testing Matrix**: Validates compatibility across `ubuntu-latest`, `macos-latest`, and `windows-latest`.
 *   **Tests & Verifications**: Compiles builds, checks styles (`npm run lint`), enforces TypeScript compilation (`npm run check-types`), and executes unit tests (`npm run test`).
 
-
-TESTING CODERABBIT

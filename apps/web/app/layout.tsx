@@ -4,7 +4,6 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import StoreProvider from "@/lib/redux/provider";
-import OnboardingWidget from "@/components/onboarding/OnboardingWidget";
 
 const geist = Geist({ subsets: ["latin"] });
 
@@ -30,7 +29,6 @@ export default function RootLayout({
           <StoreProvider>
             {children}
           </StoreProvider>
-          <OnboardingWidget />
         </ThemeProvider>
       </body>
     </html>

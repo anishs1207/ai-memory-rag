@@ -1,6 +1,7 @@
 package main
 
 import (
+	"anishs1207/ai-infra/orchestrator"
 	"context"
 	"errors"
 	"fmt"
@@ -9,8 +10,6 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
-	"anishs1207/ai-infra/orchestrator"
 )
 
 func main() {

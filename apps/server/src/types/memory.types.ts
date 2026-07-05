@@ -1,6 +1,6 @@
 // ════════════════════════════════════════════════════════════════════════════
 // PAXIO MEMORY FRAMEWORK — Core Type Definitions
-// Based on: MemGPT, CoALA, HippoRAG, GraphRAG research
+// Based on: MemGPT, CoALA, HippoRAG, GraphRAG, PageAgent research
 // ════════════════════════════════════════════════════════════════════════════
 
 // ─── SHORT-TERM MEMORY ───────────────────────────────────────────────────────

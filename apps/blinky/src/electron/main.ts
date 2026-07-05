@@ -10,9 +10,11 @@ import fs from 'fs';
 dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-// Defaulting to Gemma as Gemini is currently failing with 404
-const model = genAI.getGenerativeModel({ model: 'gemma-4-31b-it' });
-const gemmaModel = model; // Use the same for both for now
+// Use gemini-2.5-flash as the primary text and multimodal vision model.
+// This supports all chat, classification, and vision tasks.
+const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+const gemmaModel = model; // Alias for routing compatibility
+
 
 function createWindow() {
   const mainWindow = new BrowserWindow({

@@ -275,7 +275,7 @@ Return ONLY a JSON array:
     actionVotes.forEach((v: any) => {
       counts[v.actionId] = (counts[v.actionId] || 0) + 1;
     });
-    
+
     const finalActionId = Object.entries(counts).reduce((a, b) => b[1] > a[1] ? b : a)[0];
     const finalAction = issue.actions.find((a: any) => a.id === finalActionId);
 
@@ -337,7 +337,7 @@ export const generateNews = async (req: Request, res: Response) => {
       }),
     });
     const { finalAction, outcome, issue } = schema.parse(req.body);
-    
+
     const prompt = `
 Generate 3 dramatic news headlines from different media outlets (e.g., State Media, Rebel Underground, Corporate News) reacting to the following event:
 Issue: ${issue.issue}
@@ -346,10 +346,10 @@ Consequence: ${outcome.consequence}
 
 Return ONLY a JSON array of objects with keys: "outlet" (string), "headline" (string), "bias" (string, either "positive", "negative", or "neutral"), and "content" (string, a short paragraph summarising the article).
 `;
-    
+
     const resp = await geminiClient(prompt);
     const news = parseResult(resp);
-    
+
     return res.status(200).json({ success: true, news });
   } catch (err: any) {
     if (err instanceof z.ZodError) {
