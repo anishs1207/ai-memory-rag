@@ -96,6 +96,7 @@ type Conversation = {
     messages: ChatMessage[];
     selectedFile?: string;
     timestamp: number;
+    llm?: "gemini" | "smollm";
 };
 
 type UploadQueueItem = {
@@ -246,9 +247,11 @@ export default function ChatContent({
             }
 
             const url = ROUTE_MAP[conversation.model];
-            const payload = conversation.model === "pdf"
-                ? { prompt: input, fileName: conversation.selectedFile }
-                : { prompt: input };
+            const payload = {
+                prompt: input,
+                llm: conversation.llm || "gemini",
+                ...(conversation.model === "pdf" && { fileName: conversation.selectedFile })
+            };
 
             const response = await axios.post<{
                 success: boolean;
@@ -425,7 +428,10 @@ export default function ChatContent({
                 data?: string;
                 pdfUrl?: string;
                 error?: string;
-            }>(`${SERVER_URL}/api/v1/message/research`, { topic: researchTopic });
+            }>(`${SERVER_URL}/api/v1/message/research`, {
+                topic: researchTopic,
+                llm: conversation.llm || "gemini"
+            });
             const docContent = res.data.data;
             const pdfUrl = res.data.pdfUrl;
 
@@ -459,7 +465,25 @@ export default function ChatContent({
                             {conversation.title}
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                     <div className="flex items-center gap-2">
+                        {/* LLM Model Dropdown Selector */}
+                        <Select
+                            value={conversation.llm || "gemini"}
+                            onValueChange={(val: "gemini" | "smollm") => updateConversation(conversation.id, { llm: val })}
+                        >
+                            <SelectTrigger className="h-8 text-xs w-[140px] rounded-full border bg-background hover:bg-muted font-medium transition-colors cursor-pointer">
+                                <SelectValue placeholder="Select LLM" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="gemini" className="text-xs">
+                                    Gemini 2.5 Flash
+                                </SelectItem>
+                                <SelectItem value="smollm" className="text-xs">
+                                    smolLM 135 SFT
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+
                         <input
                             type="file"
                             ref={fileInputRef}

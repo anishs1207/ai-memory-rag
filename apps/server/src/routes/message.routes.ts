@@ -17,10 +17,10 @@ router.route("/chat-file").post(aiEndpointsLimiter, queryMessageFromFile);
 router.route("/get-files").get(getFiles);
 router.route("/budget").post(aiEndpointsLimiter, (req, res) => res.status(200).json({ success: true, message: "Budget context received" }));
 router.route("/research").post(aiEndpointsLimiter, async (req, res) => {
-    const { topic } = req.body;
+    const { topic, llm } = req.body;
     try {
         const researchPrompt = `Generate a research document in LaTeX format about: ${topic}. Include sections like Abstract, Introduction, Methodology, and Conclusion.`;
-        const aiResponse = await geminiClient(researchPrompt);
+        const aiResponse = await geminiClient(researchPrompt, llm);
         const latexContent = getText(aiResponse);
         
         const fileName = `research-${Date.now()}.pdf`;
