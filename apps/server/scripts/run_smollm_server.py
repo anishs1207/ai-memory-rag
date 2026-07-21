@@ -26,25 +26,27 @@ except ImportError as import_error:
     print(f"[ERROR] Failed to import model libraries: {import_error}", flush=True)
     sys.exit(1)
 
-# Paths for the local adapter weights
-ADAPTER_DIRECTORY_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "cpt_sec_adapter")
+# Paths for the local adapter weights and merged model weights
+CPT_ADAPTER_DIRECTORY_PATH = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "models", "cpt_sec_adapter")
+)
+DPO_ADAPTER_DIRECTORY_PATH = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "models", "dpo_adapter")
+)
+FINANCIAL_MODEL_DIRECTORY_PATH = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "models", "sft_financial_qa_merged")
 )
 
-print(f"[LOG] Resolved adapter path to: {ADAPTER_DIRECTORY_PATH}")
+print(f"[LOG] Resolved CPT adapter path to: {CPT_ADAPTER_DIRECTORY_PATH}")
+print(f"[LOG] Resolved DPO adapter path to: {DPO_ADAPTER_DIRECTORY_PATH}")
+print(f"[LOG] Resolved Financial SFT model path to: {FINANCIAL_MODEL_DIRECTORY_PATH}")
 
-# Load models globally so they are cached in memory for subsequent requests
-print("[LOG] Loading model tokenizer...")
-tokenizer = AutoTokenizer.from_pretrained(ADAPTER_DIRECTORY_PATH)
+# Active model states to allow dynamic, on-demand loading and save CPU memory
+loaded_model_name = None
+active_model = None
+active_tokenizer = None
 
-print("[LOG] Loading HuggingFaceTB/SmolLM-135M-Instruct base model...")
-base_causal_model = AutoModelForCausalLM.from_pretrained("HuggingFaceTB/SmolLM-135M-Instruct")
-
-print("[LOG] Loading local PEFT adapter weights...")
-peft_fine_tuned_model = PeftModel.from_pretrained(base_causal_model, ADAPTER_DIRECTORY_PATH)
-peft_fine_tuned_model.eval() # Set model to evaluation mode for inference
-
-print("[LOG] Local SmolLM-135M model and adapter loaded successfully.")
+print("[LOG] Local SmolLM-135M CPT model and Financial SFT model initialization wrapper ready.")
 
 class SmolLMRequestHandler(BaseHTTPRequestHandler):
     """
@@ -58,36 +60,72 @@ class SmolLMRequestHandler(BaseHTTPRequestHandler):
             request_payload = json.loads(raw_post_data.decode('utf-8'))
             
             user_prompt = request_payload.get("prompt", "")
-            print(f"[LOG] Processing generation request for prompt: {user_prompt[:60]}...", flush=True)
+            requested_model = request_payload.get("model", "smollm")
+            print(f"[LOG] Processing generation request for model: {requested_model}, prompt: {user_prompt[:60]}...", flush=True)
             
             # Format using standard chat templates for ChatML compatibility
             formatted_input_prompt = f"<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n"
             
-            input_tokens = tokenizer(formatted_input_prompt, return_tensors="pt")
+            # Dynamically load/switch model to save memory
+            global loaded_model_name, active_model, active_tokenizer
+            if requested_model != loaded_model_name:
+                print(f"[LOG] Switching/Loading model from {loaded_model_name} to {requested_model}...", flush=True)
+                # Clear previous model weights to free memory
+                active_model = None
+                active_tokenizer = None
+                import gc
+                gc.collect()
+                
+                if requested_model == "sf_financial_qa":
+                    print("[LOG] Loading Financial SFT model tokenizer (use_fast=False)...", flush=True)
+                    active_tokenizer = AutoTokenizer.from_pretrained(FINANCIAL_MODEL_DIRECTORY_PATH, use_fast=False)
+                    print("[LOG] Loading local Financial SFT merged model...", flush=True)
+                    active_model = AutoModelForCausalLM.from_pretrained(FINANCIAL_MODEL_DIRECTORY_PATH)
+                elif requested_model in ("dpo", "dpo_adapter"):
+                    print("[LOG] Loading DPO model tokenizer (use_fast=False)...", flush=True)
+                    active_tokenizer = AutoTokenizer.from_pretrained(DPO_ADAPTER_DIRECTORY_PATH, use_fast=False)
+                    print("[LOG] Loading HuggingFaceTB/SmolLM-135M-Instruct base model for DPO...", flush=True)
+                    dpo_base_causal_model = AutoModelForCausalLM.from_pretrained("HuggingFaceTB/SmolLM-135M-Instruct")
+                    print("[LOG] Loading local PEFT adapter weights for DPO...", flush=True)
+                    active_model = PeftModel.from_pretrained(dpo_base_causal_model, DPO_ADAPTER_DIRECTORY_PATH)
+                else:
+                    # Fallback to CPT model configuration
+                    print("[LOG] Loading CPT model tokenizer (use_fast=False)...", flush=True)
+                    active_tokenizer = AutoTokenizer.from_pretrained(CPT_ADAPTER_DIRECTORY_PATH, use_fast=False)
+                    print("[LOG] Loading HuggingFaceTB/SmolLM-135M-Instruct base model for CPT...", flush=True)
+                    cpt_base_causal_model = AutoModelForCausalLM.from_pretrained("HuggingFaceTB/SmolLM-135M-Instruct")
+                    print("[LOG] Loading local PEFT adapter weights for CPT...", flush=True)
+                    active_model = PeftModel.from_pretrained(cpt_base_causal_model, CPT_ADAPTER_DIRECTORY_PATH)
+                
+                active_model.eval()
+                loaded_model_name = requested_model
+                print(f"[LOG] Model {requested_model} loaded successfully.", flush=True)
             
-            print("[LOG] Running model.generate on CPU...", flush=True)
+            input_tokens = active_tokenizer(formatted_input_prompt, return_tensors="pt")
+            
+            print(f"[LOG] Running {requested_model} model.generate on CPU...", flush=True)
             # Define end-of-generation stop tokens (tokenizer.eos_token and <|im_end|>)
-            generation_eos_token_ids = [tokenizer.eos_token_id]
-            im_end_token_id = tokenizer.convert_tokens_to_ids("<|im_end|>")
+            generation_eos_token_ids = [active_tokenizer.eos_token_id]
+            im_end_token_id = active_tokenizer.convert_tokens_to_ids("<|im_end|>")
             if im_end_token_id is not None:
                 generation_eos_token_ids.append(im_end_token_id)
 
             # Generate the response using PyTorch on CPU without gradients
             with torch.no_grad():
-                generated_token_outputs = peft_fine_tuned_model.generate(
+                generated_token_outputs = active_model.generate(
                     **input_tokens,
                     max_new_tokens=150,
                     temperature=0.7,
                     do_sample=True,
                     repetition_penalty=1.2,
                     eos_token_id=generation_eos_token_ids,
-                    pad_token_id=tokenizer.eos_token_id
+                    pad_token_id=active_tokenizer.eos_token_id
                 )
             
             print("[LOG] Generation complete. Decoding tokens...", flush=True)
             # Extract the new assistant response slice from the generated outputs
             prompt_token_count = input_tokens.input_ids.shape[1]
-            response_text = tokenizer.decode(
+            response_text = active_tokenizer.decode(
                 generated_token_outputs[0][prompt_token_count:],
                 skip_special_tokens=True
             )

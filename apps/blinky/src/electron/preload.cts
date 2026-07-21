@@ -16,5 +16,9 @@ contextBridge.exposeInMainWorld('electron', {
   // Expose system execution capabilities safely to launch apps (e.g. Chrome, Notepad)
   executeSystemCommand: (command: string) => ipcRenderer.invoke('execute-system-command', command),
   executePowershellScript: (script: string) => ipcRenderer.invoke('execute-powershell-script', script),
+  // Local History Persistence methods
+  saveChatHistory: (history: any[]) => ipcRenderer.invoke('save-chat-history', history),
+  loadChatHistory: () => ipcRenderer.invoke('load-chat-history'),
+  clearChatHistory: () => ipcRenderer.invoke('clear-chat-history'),
 });
 

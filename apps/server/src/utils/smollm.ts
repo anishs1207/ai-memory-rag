@@ -69,12 +69,14 @@ export function stopSmolLMServer(): void {
  * Client function to query the local HTTP server.
  * Returns a response object matching the format expected by the backend controllers/utils.
  * @param promptText The user or system prompt to run inference on.
+ * @param modelName The target model identifier to route the prompt to on the python server.
  */
-export async function smollmClient(promptText: string): Promise<any> {
-    console.log(`[LOG] Routing inference request to local SmolLM server on port ${SMOL_LM_SERVER_PORT}...`);
+export async function smollmClient(promptText: string, modelName: string = "smollm"): Promise<any> {
+    console.log(`[LOG] Routing inference request to local SmolLM server (${modelName}) on port ${SMOL_LM_SERVER_PORT}...`);
     try {
         const serverResponse = await axios.post(SMOL_LM_SERVER_URL, {
-            prompt: promptText
+            prompt: promptText,
+            model: modelName
         }, {
             headers: { "Content-Type": "application/json" },
             timeout: 180000 // 3-minute timeout for local CPU generation

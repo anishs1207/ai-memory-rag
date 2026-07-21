@@ -4,6 +4,17 @@ export interface ScreenSource {
   thumbnail: string;
 }
 
+export interface HistoryItem {
+  id: string;
+  prompt: string;
+  response: string;
+  timestamp: string;
+  isVoiceMuted?: boolean;
+  hasScreenshot?: boolean;
+  base64Screenshot?: string;
+  screenshotPath?: string;
+}
+
 export interface ElectronAPI {
   getSources: () => Promise<ScreenSource[]>;
   setWindowSize: (width: number, height: number) => void;
@@ -16,6 +27,9 @@ export interface ElectronAPI {
   setContentProtection: (protect: boolean) => void;
   executeSystemCommand: (command: string) => Promise<{ success: boolean; stdout?: string; stderr?: string; error?: string }>;
   executePowershellScript: (script: string) => Promise<{ success: boolean; stdout?: string; stderr?: string; error?: string }>;
+  saveChatHistory: (history: HistoryItem[]) => Promise<{ success: boolean; error?: string }>;
+  loadChatHistory: () => Promise<HistoryItem[]>;
+  clearChatHistory: () => Promise<{ success: boolean; error?: string }>;
 }
 
 declare global {

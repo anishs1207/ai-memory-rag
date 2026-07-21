@@ -17,14 +17,15 @@ func main() {
 	fmt.Println("             Starting AgentOS Engine              ")
 	fmt.Println("==================================================")
 
-	// Trap SIGINT and SIGTERM to handle graceful shutdown and terminate child processes.
-	shutdownContext, stopSignalTrap := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	shutdownContext, stopSignalTrap := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
 	defer stopSignalTrap()
 
 	// 1. Initialize the Port Allocator with a wide range of ports (10000 to 11000) for agent replicas.
 	portAllocator := orchestrator.NewPortAllocator(10000, 11000)
-
-	// --- NEW SUBSYSTEM INITIALIZATION ---
 
 	// 2. Initialize simulated Node fleet
 	nodeManager := orchestrator.NewNodeManager()
@@ -74,10 +75,13 @@ func main() {
 
 	// Monitor scale-to-zero for idle deployments.
 	scheduler.StartScaleToZeroMonitor(shutdownContext)
+	
 	// Monitor multiple metrics (CPU, Memory, RPS, Tokens, Queue) for horizontal replica autoscaling.
 	scheduler.StartMetricsAutoscaler(shutdownContext, observability, jobQueue)
+	
 	// Start async job processors.
 	jobQueue.Start(shutdownContext)
+	
 	// Start the active background reconciliation loop to self-heal crashed replicas.
 	scheduler.StartReconcilerLoop(shutdownContext)
 
@@ -105,10 +109,16 @@ func main() {
 	}
 
 	// 13. Start the API Server.
+	// as a go routine as well
+	// can modfy it and use a better http lib like gin here for future use
 	go func() {
+		// to run here
 		fmt.Printf("[AgentOS] Server listening at http://localhost:8080\n")
+		// server started at localhost:8080 (prot)
 		err := httpServer.ListenAndServe()
+
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			// handle the errors here
 			fmt.Printf("[AgentOS] Critical: HTTP server failed: %v\n", err)
 			os.Exit(1)
 		}
@@ -129,6 +139,7 @@ func main() {
 
 	// 16. Forcefully terminate all running child process instances of deployed agents and free node resources.
 	scheduler.StopAll()
+	// to terminate all processes
 
 	fmt.Println("[AgentOS] All processes terminated successfully. Shutdown complete.")
 }

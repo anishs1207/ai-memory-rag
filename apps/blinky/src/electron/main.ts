@@ -9,17 +9,16 @@ import fs from 'fs';
 
 dotenv.config({ path: path.join(process.cwd(), '.env') });
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 // Use gemini-2.5-flash as the primary text and multimodal vision model.
-// This supports all chat, classification, and vision tasks.
-const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-const gemmaModel = model; // Alias for routing compatibility
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
+const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+const gemmaModel = model;
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 800,
-    height: 60, // Start as a small bar
+    height: 60,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -33,7 +32,6 @@ function createWindow() {
     },
   });
 
-  // Auto-approve media (microphone) permissions for offline local Speech Recognition
   session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
     if (permission === 'media') {
       return true;
@@ -49,8 +47,6 @@ function createWindow() {
     }
   });
 
-
-  // Center on top
   const primaryDisplay = screen.getPrimaryDisplay();
 
   const { width } = primaryDisplay.workAreaSize;
@@ -274,6 +270,106 @@ function createWindow() {
       name: source.name,
       thumbnail: source.thumbnail.toDataURL(),
     }));
+  });
+
+  // --- LOCAL HISTORY PERSISTENCE IPC HANDLERS ---
+  const getHistoryDir = () => {
+    const dir = path.join(app.getPath('userData'), 'history');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    return dir;
+  };
+
+  const getCapturesDir = () => {
+    const dir = path.join(getHistoryDir(), 'captures');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    return dir;
+  };
+
+  ipcMain.handle('save-chat-history', async (_, historyItems: any[]) => {
+    try {
+      const historyDir = getHistoryDir();
+      const capturesDir = getCapturesDir();
+      const chatsPath = path.join(historyDir, 'chats.json');
+
+      const processedItems = historyItems.map((item) => {
+        const itemCopy = { ...item };
+        if (itemCopy.base64Screenshot) {
+          try {
+            const fileName = `${itemCopy.id || Date.now()}.png`;
+            const filePath = path.join(capturesDir, fileName);
+            const base64Data = itemCopy.base64Screenshot.replace(/^data:image\/\w+;base64,/, '');
+            fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+            itemCopy.screenshotPath = fileName;
+            delete itemCopy.base64Screenshot;
+          } catch (imgErr) {
+            console.error('Failed to save screenshot file:', imgErr);
+          }
+        }
+        return itemCopy;
+      });
+
+      fs.writeFileSync(chatsPath, JSON.stringify(processedItems, null, 2), 'utf-8');
+      return { success: true };
+    } catch (err) {
+      console.error('Failed to save chat history:', err);
+      return { success: false, error: (err as Error).message };
+    }
+  });
+
+  ipcMain.handle('load-chat-history', async () => {
+    try {
+      const historyDir = getHistoryDir();
+      const capturesDir = getCapturesDir();
+      const chatsPath = path.join(historyDir, 'chats.json');
+
+      if (!fs.existsSync(chatsPath)) {
+        return [];
+      }
+
+      const rawData = fs.readFileSync(chatsPath, 'utf-8');
+      const items = JSON.parse(rawData);
+
+      const loadedItems = items.map((item: any) => {
+        if (item.screenshotPath) {
+          const imgPath = path.join(capturesDir, item.screenshotPath);
+          if (fs.existsSync(imgPath)) {
+            const buffer = fs.readFileSync(imgPath);
+            item.base64Screenshot = `data:image/png;base64,${buffer.toString('base64')}`;
+          }
+        }
+        return item;
+      });
+
+      return loadedItems;
+    } catch (err) {
+      console.error('Failed to load chat history:', err);
+      return [];
+    }
+  });
+
+  ipcMain.handle('clear-chat-history', async () => {
+    try {
+      const historyDir = getHistoryDir();
+      const chatsPath = path.join(historyDir, 'chats.json');
+      if (fs.existsSync(chatsPath)) {
+        fs.unlinkSync(chatsPath);
+      }
+      const capturesDir = getCapturesDir();
+      if (fs.existsSync(capturesDir)) {
+        const files = fs.readdirSync(capturesDir);
+        for (const file of files) {
+          fs.unlinkSync(path.join(capturesDir, file));
+        }
+      }
+      return { success: true };
+    } catch (err) {
+      console.error('Failed to clear chat history:', err);
+      return { success: false, error: (err as Error).message };
+    }
   });
 }
 

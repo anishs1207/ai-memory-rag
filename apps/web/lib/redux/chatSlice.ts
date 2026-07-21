@@ -31,7 +31,7 @@ export type Conversation = {
     messages: ChatMessage[];
     selectedFile?: string;
     timestamp: number;
-    llm?: "gemini" | "smollm";
+    llm?: "gemini" | "smollm" | "sf_financial_qa" | "dpo_adapter";
 };
 
 export interface ChatState {

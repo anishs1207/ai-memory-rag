@@ -13,7 +13,18 @@ export async function geminiClient(prompt: string, llm?: string) {
     if (llm === "smollm") {
         // Rule 3: Log each major step
         console.log("[LOG] Routing prompt to local SmolLM-135M model");
-        return smollmClient(prompt);
+        return smollmClient(prompt, "smollm");
+    }
+    if (llm === "sf_financial_qa") {
+        // Rule 3: Log each major step
+        console.log("[LOG] Routing prompt to local sf_financial_qa model");
+        return smollmClient(prompt, "sf_financial_qa");
+    }
+    if (llm === "dpo" || llm === "dpo_adapter") {
+        // Rule 3: Log each major step
+        console.log("[LOG] Routing prompt to local dpo_adapter model");
+        // Route specifically to the DPO adapter on the Python server
+        return smollmClient(prompt, "dpo_adapter");
     }
     
     console.log("[LOG] Routing prompt to Google Gemini 2.5 Flash API");

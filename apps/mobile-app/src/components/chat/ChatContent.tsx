@@ -7,6 +7,7 @@ import {
   Pressable,
   ActivityIndicator,
   Linking,
+  Clipboard, // added Clipboard for copying message content
 } from "react-native";
 import {
   ArrowUp,
@@ -20,6 +21,7 @@ import {
   Download,
   AlertCircle,
   Bot,
+  Copy, // added Copy for message actions
 } from "lucide-react-native";
 import { Conversation, SERVER_URL } from "../../lib/api";
 
@@ -115,7 +117,17 @@ export default function ChatContent({
 }: ChatContentProps) {
   const [inputText, setInputText] = useState("");
   const [showReasoning, setShowReasoning] = useState<Record<string, boolean>>({});
+  const [copiedId, setCopiedId] = useState<string | null>(null); // tracks the last copied message ID for micro-feedback
   const scrollViewRef = useRef<ScrollView>(null);
+
+  // Handle clipboard text copy with micro-interaction state
+  const handleCopyMessage = (msgId: string, content: string) => {
+    Clipboard.setString(content);
+    setCopiedId(msgId);
+    setTimeout(() => {
+      setCopiedId(null);
+    }, 1500);
+  };
 
   // Auto scroll to bottom when messages or loading state changes
   useEffect(() => {
@@ -194,6 +206,28 @@ export default function ChatContent({
                   >
                     {/* Render message content */}
                     <FormattedText text={msg.content} isUser={isUser} />
+
+                    {/* Clipboard copy action for assistant messages (not errors) */}
+                    {!isUser && !isError && (
+                      <View className="flex-row justify-end mt-2 pt-2 border-t border-gray-100/50 dark:border-zinc-800/40">
+                        <Pressable
+                          onPress={() => handleCopyMessage(msg.id, msg.content)}
+                          className="flex-row items-center space-x-1 px-2 py-1 rounded bg-gray-55 dark:bg-zinc-800 active:scale-95"
+                        >
+                          {copiedId === msg.id ? (
+                            <>
+                              <CheckCircle2 size={11} className="text-green-500" />
+                              <Text className="text-[9px] font-semibold text-green-600 dark:text-green-400">Copied</Text>
+                            </>
+                          ) : (
+                            <>
+                              <Copy size={11} className="text-gray-400 dark:text-zinc-500" />
+                              <Text className="text-[9px] font-semibold text-gray-500 dark:text-zinc-400">Copy</Text>
+                            </>
+                          )}
+                        </Pressable>
+                      </View>
+                    )}
 
                     {/* PDF attachment button (Research Model) */}
                     {msg.pdfUrl && (

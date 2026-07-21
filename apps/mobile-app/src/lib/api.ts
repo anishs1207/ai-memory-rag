@@ -60,6 +60,8 @@ export type Conversation = {
   messages: ChatMessage[];
   selectedFile?: string;
   timestamp: number;
+  // Selected LLM engine engine model name ("gemini", "smollm", "sf_financial_qa", "dpo_adapter")
+  llm?: "gemini" | "smollm" | "sf_financial_qa" | "dpo_adapter";
 };
 
 // Endpoints map
@@ -72,23 +74,25 @@ export const ROUTE_MAP: Record<Exclude<ModelType, "pdf" | "budget">, string> = {
 
 // API Services
 export const chatService = {
-  // Query normal models
-  async sendMessage(model: Exclude<ModelType, "pdf" | "budget">, prompt: string) {
+  // Query normal models (including general, finance, legal, and research)
+  async sendMessage(model: Exclude<ModelType, "pdf" | "budget">, prompt: string, llm?: string) {
+    // If the model is research, the backend expects "topic" instead of "prompt"
+    const payload = model === "research" ? { topic: prompt, llm } : { prompt, llm };
     const response = await api.post<{
       success: boolean;
       data?: string;
       error?: string;
-    }>(ROUTE_MAP[model], { prompt });
+    }>(ROUTE_MAP[model], payload);
     return response.data;
   },
 
-  // Query PDF model
-  async sendPdfMessage(prompt: string, fileName: string) {
+  // Query PDF model with dynamic LLM engine routing
+  async sendPdfMessage(prompt: string, fileName: string, llm?: string) {
     const response = await api.post<{
       success: boolean;
       data?: string;
       error?: string;
-    }>("/api/v1/message/chat-file", { prompt, fileName });
+    }>("/api/v1/message/chat-file", { prompt, fileName, llm });
     return response.data;
   },
 

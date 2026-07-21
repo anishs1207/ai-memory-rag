@@ -26,5 +26,6 @@ Step 3: Explain outcome
 Write it in a an markdown file inside a folder updates, with the file name as the 
 an incremnetion of previois numnber
 
+## Note:
 keeps updating it, when your encounter a problem write about it, when you solve it and write
 about how you have approched it and the journey each time

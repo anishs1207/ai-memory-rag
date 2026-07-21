@@ -56,6 +56,7 @@ func NewPortAllocator(startPort int, endPort int) *PortAllocator {
 	}
 }
 
+
 // Allocate reserves an available port from the pool.
 func (pa *PortAllocator) Allocate() (int, error) {
 	pa.lock.Lock()

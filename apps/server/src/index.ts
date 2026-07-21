@@ -5,7 +5,6 @@ import { generalLimiter } from "./middleware/rateLimit.middleware.js";
 import "@/workers/documentWorker.js";
 import { startSmolLMServer, stopSmolLMServer } from "./utils/smollm.js";
 
-
 dotenv.config({
   path: "./.env",
 });
@@ -32,10 +31,12 @@ app.use("/uploads", express.static("uploads"));
 import messageRouter from "./routes/message.routes.js";
 import panelRouter from "./routes/panel.routes.js";
 import memoryRouter from "./routes/memoryFramework.routes.js";
+import documentRouter from "./routes/document.routes.js";
 
 app.use("/api/v1/message", messageRouter);
 app.use("/api/v1/panel", panelRouter);
 app.use("/api/v1/memory", memoryRouter);
+app.use("/api/v1/document", documentRouter);
 
 app.listen(PORT, () => {
   console.log(`Server started at http://localhost:${PORT}`);

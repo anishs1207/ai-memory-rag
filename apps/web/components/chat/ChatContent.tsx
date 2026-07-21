@@ -29,6 +29,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils"
@@ -96,7 +97,7 @@ type Conversation = {
     messages: ChatMessage[];
     selectedFile?: string;
     timestamp: number;
-    llm?: "gemini" | "smollm";
+    llm?: "gemini" | "smollm" | "sf_financial_qa" | "dpo_adapter";
 };
 
 type UploadQueueItem = {
@@ -465,11 +466,30 @@ export default function ChatContent({
                             {conversation.title}
                         </div>
                     </div>
-                     <div className="flex items-center gap-2">
+                     <div className="flex items-center gap-3">
+                        {/* DPO Mode Toggle Switch */}
+                        <div className="flex items-center gap-2 border rounded-full px-3 py-1 bg-background h-8 transition-colors hover:bg-muted/10">
+                            <span className="text-[11px] font-medium text-muted-foreground select-none">DPO Mode</span>
+                            <Switch
+                                id="dpo-mode-toggle"
+                                checked={conversation.llm === "dpo_adapter"}
+                                onCheckedChange={(checked) => {
+                                    if (checked) {
+                                        // Activate DPO adapter model
+                                        updateConversation(conversation.id, { llm: "dpo_adapter" });
+                                    } else {
+                                        // Fallback to standard CPT smollm model
+                                        updateConversation(conversation.id, { llm: "smollm" });
+                                    }
+                                }}
+                                size="sm"
+                            />
+                        </div>
+
                         {/* LLM Model Dropdown Selector */}
                         <Select
                             value={conversation.llm || "gemini"}
-                            onValueChange={(val: "gemini" | "smollm") => updateConversation(conversation.id, { llm: val })}
+                            onValueChange={(val: "gemini" | "smollm" | "sf_financial_qa" | "dpo_adapter") => updateConversation(conversation.id, { llm: val })}
                         >
                             <SelectTrigger className="h-8 text-xs w-[140px] rounded-full border bg-background hover:bg-muted font-medium transition-colors cursor-pointer">
                                 <SelectValue placeholder="Select LLM" />
@@ -480,6 +500,12 @@ export default function ChatContent({
                                 </SelectItem>
                                 <SelectItem value="smollm" className="text-xs">
                                     smolLM 135 SFT
+                                </SelectItem>
+                                <SelectItem value="sf_financial_qa" className="text-xs">
+                                    sf_financial_qa
+                                </SelectItem>
+                                <SelectItem value="dpo_adapter" className="text-xs">
+                                    dpo_adapter (DPO)
                                 </SelectItem>
                             </SelectContent>
                         </Select>

@@ -90,6 +90,7 @@ func (jq *JobQueue) GetJob(jobID string) (*Job, bool) {
 }
 
 // Start launches background processing worker goroutines.
+// why before function name ? => it is used to assign function to diff types we have here
 func (jq *JobQueue) Start(ctx context.Context) {
 	for i := 0; i < jq.workerCount; i++ {
 		go jq.workerLoop(ctx, i)

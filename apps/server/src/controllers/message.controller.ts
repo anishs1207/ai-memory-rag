@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
-import {runRAG, generateLegalPrompt, generateFinancePrompt} from "@/services/rag.service.js";
+import { runRAG, generateLegalPrompt, generateFinancePrompt } from "@/services/rag.service.js";
 import { geminiClient, parseResult, getText } from "@/utils/index.js";
 import fs from "fs";
 import path from "path";
@@ -18,108 +18,108 @@ interface EmbeddingContext {
 // also use of tersac for adding files (context added for it)
 // add document ocr for it + make it work here:
 //@ test should work here but
-const ChatLegal = async(req: Request, res: Response) => {
-    try {
-        const schema = z.object({
-            prompt: z.string().min(1, "Prompt is required"),
-            llm: z.string().optional(),
-        });
-        const { prompt, llm } = schema.parse(req.body);
+const ChatLegal = async (req: Request, res: Response) => {
+  try {
+    const schema = z.object({
+      prompt: z.string().min(1, "Prompt is required"),
+      llm: z.string().optional(),
+    });
+    const { prompt, llm } = schema.parse(req.body);
 
-        const embeddingContexts: EmbeddingContext[] = await runRAG(prompt, "./vector-db/legal-vector-db");
+    const embeddingContexts: EmbeddingContext[] = await runRAG(prompt, "./vector-db/legal-vector-db");
 
-        console.log("context:", embeddingContexts);
+    console.log("context:", embeddingContexts);
 
-        const bigPrompt = generateLegalPrompt(prompt, embeddingContexts);
-        
-        const aiResponse = await geminiClient(bigPrompt, llm);
+    const bigPrompt = generateLegalPrompt(prompt, embeddingContexts);
 
-        if (!aiResponse) {
-            return res.status(400).json({
-                success: false,
-                error: "AI Response is not given"
-            })
-        }
+    const aiResponse = await geminiClient(bigPrompt, llm);
 
-        const result = parseResult(aiResponse);
-        const responseText = typeof result === 'string' ? result : (result.response || JSON.stringify(result));
-
-        return res.status(200).json({
-            success: true,
-            data: responseText
-        })
-
-    } catch(err: any) {
-        if (err instanceof z.ZodError) {
-            return res.status(400).json({
-                success: false,
-                error: err.issues[0]?.message || "Validation Error"
-            });
-        }
-        console.error("ChatLegal Error:", err)
-        return res.status(500).json({
-            success: false,
-            error: err.message || "Internal Server Error"
-        })
+    if (!aiResponse) {
+      return res.status(400).json({
+        success: false,
+        error: "AI Response is not given"
+      })
     }
-    
+
+    const result = parseResult(aiResponse);
+    const responseText = typeof result === 'string' ? result : (result.response || JSON.stringify(result));
+
+    return res.status(200).json({
+      success: true,
+      data: responseText
+    })
+
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        error: err.issues[0]?.message || "Validation Error"
+      });
+    }
+    console.error("ChatLegal Error:", err)
+    return res.status(500).json({
+      success: false,
+      error: err.message || "Internal Server Error"
+    })
+  }
+
 }
 
-const ChatFinance = async(req: Request, res: Response) => {
-    try {
-        const schema = z.object({
-            prompt: z.string().min(1, "Prompt is required"),
-            llm: z.string().optional(),
-        });
-        const { prompt, llm } = schema.parse(req.body);
+const ChatFinance = async (req: Request, res: Response) => {
+  try {
+    const schema = z.object({
+      prompt: z.string().min(1, "Prompt is required"),
+      llm: z.string().optional(),
+    });
+    const { prompt, llm } = schema.parse(req.body);
 
-        const embeddingContexts: EmbeddingContext[] = await runRAG(prompt, "./vector-db/finance-vector-db");
+    const embeddingContexts: EmbeddingContext[] = await runRAG(prompt, "./vector-db/finance-vector-db");
 
-        console.log("context:", embeddingContexts);
+    console.log("context:", embeddingContexts);
 
-        const bigPrompt = generateFinancePrompt(prompt, embeddingContexts);
-        
-        const aiResponse = await geminiClient(bigPrompt, llm);
+    const bigPrompt = generateFinancePrompt(prompt, embeddingContexts);
 
-        if (!aiResponse) {
-            return res.status(400).json({
-                success: false,
-                error: "AI Response is not given"
-            })
-        }
+    const aiResponse = await geminiClient(bigPrompt, llm);
 
-        const result = parseResult(aiResponse);
-        const responseText = typeof result === 'string' ? result : (result.response || JSON.stringify(result));
-
-        return res.status(200).json({
-            success: true,
-            data: responseText
-        })
-       
-    } catch(err: any) {
-        if (err instanceof z.ZodError) {
-            return res.status(400).json({
-                success: false,
-                error: err.issues[0]?.message || "Validation Error"
-            });
-        }
-        console.error("ChatFinance Error:", err)
-        return res.status(500).json({
-            success: false,
-            error: err.message || "Internal Server Error"
-        })
+    if (!aiResponse) {
+      return res.status(400).json({
+        success: false,
+        error: "AI Response is not given"
+      })
     }
+
+    const result = parseResult(aiResponse);
+    const responseText = typeof result === 'string' ? result : (result.response || JSON.stringify(result));
+
+    return res.status(200).json({
+      success: true,
+      data: responseText
+    })
+
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        error: err.issues[0]?.message || "Validation Error"
+      });
+    }
+    console.error("ChatFinance Error:", err)
+    return res.status(500).json({
+      success: false,
+      error: err.message || "Internal Server Error"
+    })
+  }
 }
 
-const ChatGeneral = async(req: Request, res: Response) => {
-    try {
-        const schema = z.object({
-            prompt: z.string().min(1, "Prompt is required"),
-            llm: z.string().optional(),
-        });
-        const { prompt, llm } = schema.parse(req.body);
+const ChatGeneral = async (req: Request, res: Response) => {
+  try {
+    const schema = z.object({
+      prompt: z.string().min(1, "Prompt is required"),
+      llm: z.string().optional(),
+    });
+    const { prompt, llm } = schema.parse(req.body);
 
-        const bigPrompt = `
+    const bigPrompt = `
           <agent>
           You are a helpful general assistant. Answer clearly and concisely.
           </agent>
@@ -127,39 +127,39 @@ const ChatGeneral = async(req: Request, res: Response) => {
           user asked:
           ${prompt}
         `
-        const aiResponse = await geminiClient(bigPrompt, llm);
+    const aiResponse = await geminiClient(bigPrompt, llm);
 
-        console.log("apiResponse", aiResponse);
+    console.log("apiResponse", aiResponse);
 
-        if (!aiResponse) {
-            return res.status(400).json({
-                success: false,
-                error: "Error getting response"
-            })
-        }
-
-        const responseText = getText(aiResponse);
-
-        console.log("responseText", responseText);
-
-        return res.status(200).json({
-            success: true,
-            data: responseText
-        })
-
-    } catch(err: any) {
-        if (err instanceof z.ZodError) {
-            return res.status(400).json({
-                success: false,
-                error: err.issues[0]?.message || "Validation Error"
-            });
-        }
-        console.error("ChatGeneral Error:", err)
-        return res.status(500).json({
-            success: false,
-            error: err.message || "Internal Server Error"
-        })
+    if (!aiResponse) {
+      return res.status(400).json({
+        success: false,
+        error: "Error getting response"
+      })
     }
+
+    const responseText = getText(aiResponse);
+
+    console.log("responseText", responseText);
+
+    return res.status(200).json({
+      success: true,
+      data: responseText
+    })
+
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        error: err.issues[0]?.message || "Validation Error"
+      });
+    }
+    console.error("ChatGeneral Error:", err)
+    return res.status(500).json({
+      success: false,
+      error: err.message || "Internal Server Error"
+    })
+  }
 }
 
 // refer: https://app.pinecone.io/organizations/-OkIhbKdrSTCm9S_ivLE/projects/8d67056d-52d7-414d-b0c6-5a8d155d0840/keys
@@ -201,35 +201,35 @@ export function chunkText(text: string, chunkSize = 800, overlap = 100): string[
 }
 
 async function uploadFile(req: Request, res: Response) {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ success: false, error: "File is required" });
-      }
-
-      const filePath = req.file.path;
-      const fileName = req.file.originalname;
-
-      // Add task to background queue
-      const job = await documentQueue.add("index-file", {
-        filePath,
-        fileName,
-      });
-
-      return res.status(200).json({
-        success: true,
-        message: `File "${fileName}" uploaded and queued for indexing successfully!`,
-        jobId: job.id,
-        fileName,
-      });
-    } catch (err: any) {
-      console.error("Error queueing upload file:", err);
-      if (req.file && fs.existsSync(req.file.path)) {
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch (_) {}
-      }
-      return res.status(500).json({ success: false, error: err.message });
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: "File is required" });
     }
+
+    const filePath = req.file.path;
+    const fileName = req.file.originalname;
+
+    // Add task to background queue
+    const job = await documentQueue.add("index-file", {
+      filePath,
+      fileName,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `File "${fileName}" uploaded and queued for indexing successfully!`,
+      jobId: job.id,
+      fileName,
+    });
+  } catch (err: any) {
+    console.error("Error queueing upload file:", err);
+    if (req.file && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (_) { }
+    }
+    return res.status(500).json({ success: false, error: err.message });
+  }
 }
 
 async function getUploadStatus(req: Request, res: Response) {
@@ -284,11 +284,11 @@ const queryMessageFromFile = async (
 ) => {
   try {
     const schema = z.object({
-        fileName: z.string().min(1, "fileName is required"),
-        prompt: z.string().min(1, "prompt is required"),
-        topK: z.number().int().min(1).optional().default(5),
-        legalMode: z.boolean().optional().default(false),
-        llm: z.string().optional(),
+      fileName: z.string().min(1, "fileName is required"),
+      prompt: z.string().min(1, "prompt is required"),
+      topK: z.number().int().min(1).optional().default(5),
+      legalMode: z.boolean().optional().default(false),
+      llm: z.string().optional(),
     });
     const { fileName, prompt, topK, legalMode, llm } = schema.parse(req.body);
 
@@ -299,12 +299,12 @@ const queryMessageFromFile = async (
     const index = getPinecone().index(INDEX_NAME);
 
     const queryResponse = await index.query({
-        vector: queryEmbedding,
-        topK,
-        includeMetadata: true,
-        filter: {
-          fileName: { $eq: fileName },
-        },
+      vector: queryEmbedding,
+      topK,
+      includeMetadata: true,
+      filter: {
+        fileName: { $eq: fileName },
+      },
     });
 
     if (!queryResponse.matches || queryResponse.matches.length === 0) {
@@ -326,11 +326,11 @@ const queryMessageFromFile = async (
 
     // 4️⃣ System prompt
     const systemPrompt = legalMode
-            ? `You are a legal assistant. Answer strictly using the provided document context.
+      ? `You are a legal assistant. Answer strictly using the provided document context.
         If the answer is not present, say "The document does not contain this information."`
-            : `You are a helpful assistant. Use the provided context to answer the question.`;
+      : `You are a helpful assistant. Use the provided context to answer the question.`;
 
-            const finalPrompt = `
+    const finalPrompt = `
         ${systemPrompt}
 
         DOCUMENT CONTEXT:
@@ -363,10 +363,10 @@ const queryMessageFromFile = async (
     });
   } catch (err: any) {
     if (err instanceof z.ZodError) {
-        return res.status(400).json({
-            success: false,
-            error: err.issues[0]?.message || "Validation Error"
-        });
+      return res.status(400).json({
+        success: false,
+        error: err.issues[0]?.message || "Validation Error"
+      });
     }
     console.error("RAG query error:", err);
     return res.status(500).json({
@@ -400,7 +400,7 @@ const queryMessageFromFile = async (
 //  });
 
 
- 
+
 // // her: https://docs.landing.ai/ade/ade-typescript
 // // Parse a remote file
 // const response2 = await client.parse({
@@ -410,7 +410,7 @@ const queryMessageFromFile = async (
 //   split: "page",
 // });
 
- 
+
 // console.log(response.chunks);
 
 // // Save Markdown output (useful if you plan to run extract on the Markdown)
@@ -502,23 +502,23 @@ const queryMessageFromFile = async (
 // }
 
 async function getFiles(req: Request, res: Response) {
-    try {
-        const index = getPinecone().index(INDEX_NAME);
-        // This is a hack because Pinecone doesn't support listing unique metadata values easily.
-        // We'll just return a message or implement a better tracker if needed.
-        // For now, let's assume we maintain a simple local list.
-        const filesPath = path.join(process.cwd(), "uploads", "files.json");
-        let files = [];
-        if (fs.existsSync(filesPath)) {
-            files = JSON.parse(fs.readFileSync(filesPath, "utf-8"));
-        }
-        return res.status(200).json({ success: true, data: files });
-    } catch (err: any) {
-        return res.status(500).json({ success: false, error: err.message });
+  try {
+    const index = getPinecone().index(INDEX_NAME);
+    // This is a hack because Pinecone doesn't support listing unique metadata values easily.
+    // We'll just return a message or implement a better tracker if needed.
+    // For now, let's assume we maintain a simple local list.
+    const filesPath = path.join(process.cwd(), "uploads", "files.json");
+    let files = [];
+    if (fs.existsSync(filesPath)) {
+      files = JSON.parse(fs.readFileSync(filesPath, "utf-8"));
     }
+    return res.status(200).json({ success: true, data: files });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
 }
 
-export {ChatFinance, ChatLegal, ChatGeneral, queryMessageFromFile, uploadFile, getFiles, getUploadStatus};
+export { ChatFinance, ChatLegal, ChatGeneral, queryMessageFromFile, uploadFile, getFiles, getUploadStatus };
 
 // In Landing AI’s Agentic Document Extraction (Agent Document Extraction), Parse, Extract, and Split are three different stages/operations in the document understanding pipeline. They sound similar, but they solve different problems.
 

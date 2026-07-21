@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   BrainCircuit,
   MessageSquare,
@@ -11,12 +12,17 @@ import {
   ShieldAlert,
   SlidersHorizontal,
   Play,
-  ChevronDown
+  ChevronDown,
+  Volume2,
+  VolumeX,
+  Crop,
+  Palette,
+  Mic
 } from 'lucide-react';
 
 interface TopControlBarProps {
-  windowMode: 'toolbar' | 'panel' | 'stealth' | 'aihere';
-  setWindowMode: (mode: 'toolbar' | 'panel' | 'stealth' | 'aihere') => void;
+  windowMode: 'toolbar' | 'panel' | 'stealth' | 'aihere' | 'logo';
+  setWindowMode: (mode: 'toolbar' | 'panel' | 'stealth' | 'aihere' | 'logo') => void;
   activeTab: 'assist' | 'search';
   setActiveTab: (tab: 'assist' | 'search') => void;
   clickThrough: boolean;
@@ -30,11 +36,18 @@ interface TopControlBarProps {
   handleQuerySubmit: () => void;
   showPanel: boolean;
   setShowPanel: (val: boolean) => void;
+  isVoiceMuted: boolean;
+  setIsVoiceMuted: (val: boolean) => void;
+  cursorColor: 'cyan' | 'purple' | 'green' | 'orange' | 'gold';
+  setCursorColor: (color: 'cyan' | 'purple' | 'green' | 'orange' | 'gold') => void;
+  startRegionSelection: () => void;
+  isFocusMode?: boolean;
+  setIsFocusMode?: (val: boolean) => void;
 }
 
 /**
  * TopControlBar is the top header containing layout toggles, tab controls, opacity adjustment,
- * screen protection tools, and context options.
+ * screen protection tools, cursor color settings, and context options.
  */
 export function TopControlBar({
   windowMode,
@@ -51,21 +64,41 @@ export function TopControlBar({
   setInputValue,
   handleQuerySubmit,
   showPanel,
-  setShowPanel
+  setShowPanel,
+  isVoiceMuted,
+  setIsVoiceMuted,
+  cursorColor,
+  setCursorColor,
+  startRegionSelection,
+  isFocusMode,
+  setIsFocusMode
 }: TopControlBarProps) {
+  const [showColorPicker, setShowColorPicker] = useState(false);
   return (
     <div className="top-bar">
       {/* Brand logo display */}
       <div className="top-bar-logo">
-        <BrainCircuit size={15} />
+        <BrainCircuit size={15} color="var(--accent-cyan)" />
         {windowMode !== 'stealth' && (
-          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700 }}>
-            INQORA
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, letterSpacing: '0.5px' }}>
+            BLINKY
           </span>
         )}
       </div>
 
       <div className="toolbar-separator" />
+
+      {/* Focus Mode Quick Toggle */}
+      {setIsFocusMode && (
+        <button
+          className={`control-icon-btn ${isFocusMode ? 'active success' : ''}`}
+          onClick={() => setIsFocusMode(!isFocusMode)}
+          title={isFocusMode ? "Exit Focus Mode (Show Full Panel)" : "Enter Speakable/Typeable Focus Bar Mode"}
+          style={{ marginRight: 4 }}
+        >
+          <Mic size={13} />
+        </button>
+      )}
 
       {/* Tabs directing layout and operation modes */}
       <div className="nav-tabs">
@@ -105,6 +138,13 @@ export function TopControlBar({
 
       {/* Buttons switching visual window size/layouts */}
       <div style={{ display: 'flex', gap: 2 }}>
+        <button
+          className={`control-icon-btn ${windowMode === 'logo' ? 'active' : ''}`}
+          onClick={() => setWindowMode('logo')}
+          title="Minimal Logo Mode (Shrink panel to brand logo pill)"
+        >
+          <BrainCircuit size={13} color="var(--accent-purple)" />
+        </button>
         <button
           className={`control-icon-btn ${windowMode === 'toolbar' ? 'active' : ''}`}
           onClick={() => setWindowMode('toolbar')}
@@ -150,12 +190,77 @@ export function TopControlBar({
           {contentProtected ? <ShieldCheck size={13} /> : <ShieldAlert size={13} />}
         </button>
 
-        {/* Dynamic Opacity input range */}
+        {/* Voice Mute Toggle */}
+        <button
+          className={`control-icon-btn ${isVoiceMuted ? 'active warning' : ''}`}
+          onClick={() => setIsVoiceMuted(!isVoiceMuted)}
+          title={isVoiceMuted ? "Unmute Agent Voice Response" : "Mute Agent Voice Response"}
+        >
+          {isVoiceMuted ? <VolumeX size={13} /> : <Volume2 size={13} />}
+        </button>
+
+        {/* Region Circling / Drag Tool */}
+        <button
+          className="control-icon-btn"
+          onClick={startRegionSelection}
+          title="Circle or Drag to Select Screen Region"
+        >
+          <Crop size={13} color="var(--accent-cyan)" />
+        </button>
+
+        {/* Cursor Color Theme Selector */}
+        <div style={{ position: 'relative' }}>
+          <button
+            className="control-icon-btn"
+            onClick={() => setShowColorPicker(!showColorPicker)}
+            title={`Cursor Theme: ${cursorColor}`}
+          >
+            <Palette size={13} style={{ color: `var(--cursor-main, #00f2fe)` }} />
+          </button>
+
+          {showColorPicker && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '110%',
+                right: 0,
+                background: 'rgba(15,15,25,0.95)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: '8px',
+                padding: '6px',
+                display: 'flex',
+                gap: 6,
+                zIndex: 1000
+              }}
+            >
+              {(['cyan', 'purple', 'green', 'orange', 'gold'] as const).map((color) => (
+                <div
+                  key={color}
+                  className={`color-option-dot ${cursorColor === color ? 'selected' : ''}`}
+                  style={{
+                    background:
+                      color === 'cyan' ? '#00f2fe' :
+                      color === 'purple' ? '#aa3bff' :
+                      color === 'green' ? '#10b981' :
+                      color === 'orange' ? '#f59e0b' : '#eab308'
+                  }}
+                  onClick={() => {
+                    setCursorColor(color);
+                    setShowColorPicker(false);
+                  }}
+                  title={`Select ${color} cursor aura`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Dynamic Opacity input range (supports 0.0 for 100% full background transparency) */}
         <div className="opacity-slider-container">
           <SlidersHorizontal size={12} />
           <input
             type="range"
-            min="0.15"
+            min="0.0"
             max="0.95"
             step="0.05"
             value={bgOpacity}

@@ -119,7 +119,7 @@ export default function ChatSidebar({
                                     <span className="truncate pr-6">{chat.title}</span>
                                     <Trash
                                         className="absolute right-2 size-3.5 opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity cursor-pointer"
-                                        onClick={(e) => {
+                                        onClick={(e: React.MouseEvent) => {
                                             e.stopPropagation();
                                             onDeleteChat(chat.id);
                                         }}

@@ -274,10 +274,15 @@ func (s *Scheduler) EnsureActive(agentName string) error {
 
 // StartScaleToZeroMonitor spawns a periodic checker loop that monitors agent idleness.
 // If an agent is configured with minReplicas=0 and has been idle beyond its idleTimeout, it scales down to 0.
+//@ basically checks eevery 5 seconds for idle agents to swapm down (if they have not been used for > idleTimout & have minReplicas set to 0)
+// the configure it to 0 (and keep this loo)
 func (s *Scheduler) StartScaleToZeroMonitor(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)
 	go func() {
+		// starst a new go routine, which runs in the background and contiue immdeialty
+		// 
 		for {
+			// for {} => means inifite loop running for ever
 			select {
 			case <-ctx.Done():
 				ticker.Stop()
@@ -290,12 +295,16 @@ func (s *Scheduler) StartScaleToZeroMonitor(ctx context.Context) {
 }
 
 // checkIdleDeployments iterates through deployments and evaluates idleness against manifest configurations.
+// acquire read lock for reading the data here (use of shared data here)
 func (s *Scheduler) checkIdleDeployments() {
 	s.lock.RLock()
+
 	deploymentNames := make([]string, 0, len(s.deployments))
+
 	for name := range s.deployments {
 		deploymentNames = append(deploymentNames, name)
 	}
+
 	s.lock.RUnlock()
 
 	for _, name := range deploymentNames {
@@ -335,6 +344,7 @@ func (s *Scheduler) checkIdleDeployments() {
 }
 
 // StartMetricsAutoscaler runs a periodic checks loop monitoring metrics and adjusting replica scales.
+// runs every 2 sedonds here as go routine here with infiite loop 
 func (s *Scheduler) StartMetricsAutoscaler(ctx context.Context, observability *ObservabilityManager, jobQueue *JobQueue) {
 	ticker := time.NewTicker(2 * time.Second)
 	go func() {
@@ -344,6 +354,7 @@ func (s *Scheduler) StartMetricsAutoscaler(ctx context.Context, observability *O
 				ticker.Stop()
 				return
 			case <-ticker.C:
+				// runs this metrics auto scaling here
 				s.checkMetricsAutoscaling(observability, jobQueue)
 			}
 		}
@@ -352,14 +363,20 @@ func (s *Scheduler) StartMetricsAutoscaler(ctx context.Context, observability *O
 
 func (s *Scheduler) checkMetricsAutoscaling(observability *ObservabilityManager, jobQueue *JobQueue) {
 	s.lock.RLock()
+	
 	deploymentNames := make([]string, 0, len(s.deployments))
+	
 	for name := range s.deployments {
 		deploymentNames = append(deploymentNames, name)
 	}
+	
 	s.lock.RUnlock()
 
+	// for for _,name := 
 	for _, name := range deploymentNames {
+		// since _ (it gives us an index also here)
 		s.lock.RLock()
+		// ok since required key may not be present
 		dep, ok := s.deployments[name]
 		s.lock.RUnlock()
 		if !ok {

@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
-import { GuideArrow } from './components/GuideArrow';
+import { GuideArrow, type GuideStep } from './components/GuideArrow';
 import { TopControlBar } from './components/TopControlBar';
 import { AssistantPanel } from './components/AssistantPanel';
 import { AIHereBrowser, type BrowserStep } from './components/AIHereBrowser';
+import { LogoBar } from './components/LogoBar';
 import type { ExecutionLog } from './components/VoiceActionPanel';
+import type { HistoryItem } from './types';
 
 /**
  * App is the root container of Inqora's blinky client application.
@@ -21,9 +23,16 @@ function App() {
   const [aiResponse, setAiResponse] = useState<string>("Hello! I'm your Inqora AI assistant. Ask me anything about your screen, or toggle Guide Mode to have me show you the way.");
   const [isAiLoading, setIsAiLoading] = useState(false);
 
+  // --- CLICKY GUIDE & REGION SELECTION STATES ---
+  const [cursorColor, setCursorColor] = useState<'cyan' | 'purple' | 'green' | 'orange' | 'gold'>('cyan');
+  const [isRegionSelecting, setIsRegionSelecting] = useState<boolean>(false);
+  const [guideSteps, setGuideSteps] = useState<GuideStep[]>([]);
+  const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
+  const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
+
   // --- NEW FEATURES STATES ---
-  // Window layouts: 'toolbar' (compact bar), 'panel' (main dashboard), 'stealth' (overlay text), 'aihere' (agent browser)
-  const [windowMode, setWindowMode] = useState<'toolbar' | 'panel' | 'stealth' | 'aihere'>('panel');
+  // Window layouts: 'toolbar' (compact bar), 'panel' (main dashboard), 'stealth' (overlay text), 'aihere' (agent browser), 'logo' (minimal pill)
+  const [windowMode, setWindowMode] = useState<'toolbar' | 'panel' | 'stealth' | 'aihere' | 'logo'>('panel');
   // Transparency value linked to CSS --bg-opacity variable (0.15 to 0.95)
   const [bgOpacity, setBgOpacity] = useState<number>(0.75);
   // Pointer pass-through state (when true, clicks ignore Electron window outside active hovering)
@@ -52,6 +61,10 @@ function App() {
   // Status state of voice overlay ("Idle", "Listening...", "Executing...", etc.)
   const [clickyStatus, setClickyStatus] = useState<string>("Idle");
 
+  // Voice Synthesis States: Mute toggle & speaking state tracking
+  const [isVoiceMuted, setIsVoiceMuted] = useState<boolean>(false);
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+
   // Speech Recognition states
   const [isListening, setIsListening] = useState<boolean>(false);
   const [speechSupported] = useState<boolean>(() => {
@@ -72,10 +85,71 @@ function App() {
     document.documentElement.style.setProperty('--bg-opacity', bgOpacity.toString());
   }, [bgOpacity]);
 
+  // --- LOCAL CHAT HISTORY PERSISTENCE STATE & HANDLERS ---
+  const [chatHistory, setChatHistory] = useState<HistoryItem[]>([]);
+
+  // Auto-load saved local history on app launch
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.electron?.loadChatHistory) {
+      window.electron.loadChatHistory().then((loadedItems) => {
+        if (Array.isArray(loadedItems)) {
+          setChatHistory(loadedItems);
+        }
+      }).catch((err) => {
+        console.error("Failed loading chat history:", err);
+      });
+    }
+  }, []);
+
+  const saveHistoryEntry = useCallback(async (
+    prompt: string,
+    response: string,
+    screenshotDataUrl?: string | null
+  ) => {
+    const newItem: HistoryItem = {
+      id: `history-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      prompt: prompt || (screenshotDataUrl ? "Screen Context Analysis" : "Chat"),
+      response,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      isVoiceMuted,
+      hasScreenshot: !!screenshotDataUrl,
+      base64Screenshot: screenshotDataUrl || undefined,
+    };
+
+    setChatHistory((prev) => {
+      const updated = [newItem, ...prev];
+      if (typeof window !== 'undefined' && window.electron?.saveChatHistory) {
+        window.electron.saveChatHistory(updated).catch((err) => {
+          console.error("Failed saving chat history to disk:", err);
+        });
+      }
+      return updated;
+    });
+  }, [isVoiceMuted]);
+
+  const clearHistory = useCallback(async () => {
+    if (typeof window !== 'undefined' && window.electron?.clearChatHistory) {
+      await window.electron.clearChatHistory();
+    }
+    setChatHistory([]);
+  }, []);
+
+  const loadHistoryItem = useCallback((item: HistoryItem) => {
+    if (item.prompt) setInputValue(item.prompt);
+    if (item.response) setAiResponse(item.response);
+    if (item.base64Screenshot) {
+      setCapturedScreenshot(item.base64Screenshot);
+    }
+  }, []);
+
   // Sync window size on mode changes through Electron ipcRenderer
   useEffect(() => {
-    if (windowMode === 'toolbar') {
+    if (isFocusMode) {
+      window.electron.setWindowSize(780, 85);
+    } else if (windowMode === 'toolbar') {
       window.electron.setWindowSize(800, 65);
+    } else if (windowMode === 'logo') {
+      window.electron.setWindowSize(220, 50);
     } else if (windowMode === 'stealth') {
       window.electron.setWindowSize(460, 300);
     } else if (windowMode === 'panel') {
@@ -83,7 +157,7 @@ function App() {
     } else if (windowMode === 'aihere') {
       window.electron.setWindowSize(1000, 750);
     }
-  }, [windowMode]);
+  }, [windowMode, isFocusMode]);
 
   // Sync content protection to native Electron layer
   useEffect(() => {
@@ -99,12 +173,17 @@ function App() {
 
     const handleMouseMove = (event: MouseEvent) => {
       const targetElement = event.target as HTMLElement;
-      // Re-enable clicks if mouse is over interactive panel, top-bar, or exit guide elements
+      // Re-enable clicks if mouse is over interactive panel, top-bar, step navigation, or exit guide elements
       if (
         targetElement.closest('.interactive-overlay') ||
         targetElement.closest('.top-bar') ||
         targetElement.closest('.assistant-panel') ||
-        targetElement.closest('.clicky-container')
+        targetElement.closest('.clicky-container') ||
+        targetElement.closest('.step-navigation-bar') ||
+        targetElement.closest('.step-nav-btn') ||
+        targetElement.closest('.exit-guide-btn') ||
+        targetElement.closest('.guide-voice-bubble') ||
+        targetElement.closest('.logo-bar-container')
       ) {
         window.electron.setIgnoreMouseEvents(false);
       } else {
@@ -194,13 +273,53 @@ function App() {
     }
   }, []);
 
+  // Stop current speech synthesis midway
+  const stopSpeaking = useCallback(() => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    }
+  }, []);
+
+  // Sync mute toggle to immediately halt ongoing speech
+  useEffect(() => {
+    if (isVoiceMuted) {
+      stopSpeaking();
+    }
+  }, [isVoiceMuted, stopSpeaking]);
+
   // --- AUDIO SYNTHESIS ---
   const speak = useCallback((text: string) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+
+    // Cancel any previous speech output before speaking new response
+    window.speechSynthesis.cancel();
+
+    // Do not speak if voice response is muted
+    if (isVoiceMuted || !text.trim()) {
+      setIsSpeaking(false);
+      return;
+    }
+
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1.1;
     utterance.pitch = 1.1;
+
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+    };
+
+    utterance.onend = () => {
+      setIsSpeaking(false);
+    };
+
+    utterance.onerror = (event) => {
+      console.error("Speech synthesis error:", event);
+      setIsSpeaking(false);
+    };
+
     window.speechSynthesis.speak(utterance);
-  }, []);
+  }, [isVoiceMuted]);
 
   // --- CAPTURE SCREENSHOT CONTROLS ---
   const takeManualScreenshot = async () => {
@@ -237,6 +356,45 @@ function App() {
     return null;
   };
 
+  // --- REGION CIRCLING & CROP HANDLERS ---
+  const startRegionSelection = useCallback(() => {
+    setIsRegionSelecting(true);
+    setIsGuideMode(true);
+  }, []);
+
+  const handleRegionSelected = useCallback((cropRect: { x: number; y: number; width: number; height: number }) => {
+    window.electron.captureScreen().then((fullScreenBase64) => {
+      if (!fullScreenBase64) return;
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = cropRect.width;
+        canvas.height = cropRect.height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(
+            img,
+            cropRect.x,
+            cropRect.y,
+            cropRect.width,
+            cropRect.height,
+            0,
+            0,
+            cropRect.width,
+            cropRect.height
+          );
+          const croppedDataUrl = canvas.toDataURL('image/jpeg');
+          setCapturedScreenshot(croppedDataUrl);
+          setAiResponse("Circled region captured! Type your question or click Assist.");
+          speak("Circled region captured. What would you like to know about it?");
+        }
+      };
+      img.src = fullScreenBase64;
+    }).catch((err) => {
+      console.error("Failed region capture:", err);
+    });
+  }, [speak]);
+
   // --- AI INTERACTION HANDLERS ---
   const handleAssist = useCallback(async (customPrompt?: string) => {
     const query = customPrompt || inputValue;
@@ -248,15 +406,36 @@ function App() {
       let response = "";
 
       if (base64Data) {
-        const prompt = query || "Summarize what you see on my screen in a few helpful bullet points.";
+        let prompt = query || "Summarize what you see on my screen in a few helpful bullet points.";
+        if (isGuideMode) {
+          prompt += '\nProvide step-by-step guidance. Include JSON block at end: ```json\n[{"stepNumber":1,"x":300,"y":200,"label":"Step 1","description":"Click here","annotationType":"circle"}]\n```';
+        }
         response = await window.electron.geminiVision(prompt, base64Data);
       } else {
         if (!query) return;
         response = await window.electron.geminiChat(query);
       }
 
+      // Parse multi-step guidance JSON if present
+      const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonMatch && jsonMatch[1]) {
+        try {
+          const parsedSteps = JSON.parse(jsonMatch[1]);
+          if (Array.isArray(parsedSteps) && parsedSteps.length > 0) {
+            setGuideSteps(parsedSteps);
+            setCurrentStepIndex(0);
+            setArrowPos({ x: parsedSteps[0].x, y: parsedSteps[0].y });
+            setGuideText(parsedSteps[0].description);
+            setIsGuideMode(true);
+          }
+        } catch (jsonErr) {
+          console.error("Failed to parse guide steps JSON:", jsonErr);
+        }
+      }
+
       setAiResponse(response);
       speak(response);
+      saveHistoryEntry(query, response, capturedScreenshot || (base64Data ? `data:image/jpeg;base64,${base64Data}` : null));
       setCapturedScreenshot(null);
     } catch (err) {
       console.error('Assist error:', err);
@@ -265,7 +444,7 @@ function App() {
       setIsAiLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inputValue, capturedScreenshot, autoAttachScreenshot, speak]);
+  }, [inputValue, capturedScreenshot, autoAttachScreenshot, speak, saveHistoryEntry, isGuideMode]);
 
   const handleSmart = async () => {
     if (!inputValue) return;
@@ -274,6 +453,7 @@ function App() {
       const response = await window.electron.gemmaChat(inputValue);
       setAiResponse(response);
       speak(response);
+      saveHistoryEntry(inputValue, response, null);
     } catch (err) {
       console.error('Smart error:', err);
       setAiResponse("Sorry, I had trouble reaching Gemma.");
@@ -523,60 +703,103 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
     handleQuerySubmit(speechText);
   }, [handleQuerySubmit]);
 
+  // MediaRecorder Ref for fallback audio stream recording
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
   // Speech Recognition Web API configuration
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
-      const rec = new SpeechRecognition();
-      rec.continuous = false;
-      rec.interimResults = false;
-      rec.lang = 'en-US';
+      try {
+        const rec = new SpeechRecognition();
+        rec.continuous = false;
+        rec.interimResults = false;
+        rec.lang = 'en-US';
 
-      rec.onstart = () => {
-        setIsListening(true);
-        if (windowMode === 'aihere') {
-          setClickyStatus('Listening...');
-        }
-      };
+        rec.onstart = () => {
+          setIsListening(true);
+          if (windowMode === 'aihere') {
+            setClickyStatus('Listening...');
+          }
+        };
 
-      rec.onend = () => {
-        setIsListening(false);
-        if (windowMode === 'aihere') {
-          setClickyStatus('Idle');
-        }
-      };
+        rec.onend = () => {
+          setIsListening(false);
+          if (windowMode === 'aihere') {
+            setClickyStatus('Idle');
+          }
+        };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      rec.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        setIsListening(false);
-        if (windowMode === 'aihere') {
-          setClickyStatus('Idle');
-        }
-      };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        rec.onerror = (event: any) => {
+          console.warn('Speech recognition warning (using MediaRecorder fallback):', event.error);
+          setIsListening(false);
+        };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      rec.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        if (transcript) {
-          handleSpeechInput(transcript);
-        }
-      };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        rec.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          if (transcript) {
+            handleSpeechInput(transcript);
+          }
+        };
 
-      recognitionRef.current = rec;
+        recognitionRef.current = rec;
+      } catch (err) {
+        console.warn('SpeechRecognition initialization skipped:', err);
+      }
     }
   }, [windowMode, handleSpeechInput]);
 
-  const toggleListening = () => {
-    if (!recognitionRef.current) return;
+  const toggleListening = async () => {
     if (isListening) {
-      recognitionRef.current.stop();
+      // Stop Web Speech API if active
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (_) { /* ignore */ }
+      }
+      // Stop native MediaRecorder stream if active
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try { mediaRecorderRef.current.stop(); } catch (_) { /* ignore */ }
+      }
+      setIsListening(false);
+      setClickyStatus('Idle');
     } else {
+      setIsListening(true);
+      setClickyStatus('Listening...');
+
+      // 1. Try native getUserMedia & MediaRecorder audio recording
       try {
-        recognitionRef.current.start();
-      } catch (err) {
-        console.error('Failed to start speech recognition:', err);
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const mediaRecorder = new MediaRecorder(stream);
+          audioChunksRef.current = [];
+
+          mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) audioChunksRef.current.push(event.data);
+          };
+
+          mediaRecorder.onstop = () => {
+            stream.getTracks().forEach((track) => track.stop());
+            setIsListening(false);
+            setClickyStatus('Idle');
+          };
+
+          mediaRecorder.start();
+          mediaRecorderRef.current = mediaRecorder;
+        }
+      } catch (micErr) {
+        console.warn("MediaRecorder mic access error:", micErr);
+      }
+
+      // 2. Try Web Speech API recognition asynchronously without crashing
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+        } catch (speechErr) {
+          console.warn("Web Speech start warning:", speechErr);
+        }
       }
     }
   };
@@ -585,10 +808,11 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
   useEffect(() => {
     const fetchGreeting = async () => {
       try {
-        const greeting = await window.electron.geminiChat("Write a very short, friendly 1-sentence welcome message for a desktop AI assistant called Inqora.");
+        const greeting = await window.electron.geminiChat("Write a very short, friendly 1-sentence welcome message for a desktop AI assistant called Blinky.");
         setAiResponse(greeting);
       } catch (err) {
-        console.error("Failed to fetch greeting:", err);
+        console.error('Failed to fetch initial greeting:', err);
+        setAiResponse("Hello! I'm Blinky, your AI desktop assistant. Ask me anything or toggle Guide Mode.");
       }
     };
     fetchGreeting();
@@ -640,19 +864,28 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
   // --- COMPONENT RENDER ---
   return (
     <div className={`app-container ${isGuideMode ? 'guide-active' : ''} mode-${windowMode}`}>
-      {/* Guide Mode Arrow Overlay */}
+      {/* Guide Mode Arrow & Target Reticle Overlay */}
       <GuideArrow
         isGuideMode={isGuideMode}
         arrowPos={arrowPos}
         guideText={guideText}
         setIsGuideMode={setIsGuideMode}
         setArrowPos={setArrowPos}
+        cursorColor={cursorColor}
+        guideSteps={guideSteps}
+        currentStepIndex={currentStepIndex}
+        setCurrentStepIndex={setCurrentStepIndex}
+        speakStep={speak}
+        isRegionSelecting={isRegionSelecting}
+        setIsRegionSelecting={setIsRegionSelecting}
+        onRegionSelected={handleRegionSelected}
       />
 
       <div
         className="window-wrapper"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        style={{ display: isGuideMode ? 'none' : 'flex' }}
       >
         {/* Top Control Bar */}
         <TopControlBar
@@ -671,10 +904,22 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
           handleQuerySubmit={handleQuerySubmit}
           showPanel={showPanel}
           setShowPanel={setShowPanel}
+          isVoiceMuted={isVoiceMuted}
+          setIsVoiceMuted={setIsVoiceMuted}
+          cursorColor={cursorColor}
+          setCursorColor={setCursorColor}
+          startRegionSelection={startRegionSelection}
+          isFocusMode={isFocusMode}
+          setIsFocusMode={setIsFocusMode}
         />
 
-        {/* 1. Main Assistant & Search Panels */}
-        {windowMode !== 'toolbar' && windowMode !== 'aihere' && (
+        {/* 1. Minimal Logo Mode Pill */}
+        {windowMode === 'logo' && (
+          <LogoBar setWindowMode={setWindowMode} />
+        )}
+
+        {/* 2. Main Assistant & Search Panels */}
+        {windowMode !== 'toolbar' && windowMode !== 'aihere' && windowMode !== 'logo' && (
           <AssistantPanel
             showPanel={showPanel}
             activeTab={activeTab}
@@ -695,6 +940,15 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
             autoAttachScreenshot={autoAttachScreenshot}
             setAutoAttachScreenshot={setAutoAttachScreenshot}
             handleSmart={handleSmart}
+            isVoiceMuted={isVoiceMuted}
+            setIsVoiceMuted={setIsVoiceMuted}
+            isSpeaking={isSpeaking}
+            stopSpeaking={stopSpeaking}
+            chatHistory={chatHistory}
+            clearHistory={clearHistory}
+            loadHistoryItem={loadHistoryItem}
+            isFocusMode={isFocusMode}
+            setIsFocusMode={setIsFocusMode}
           />
         )}
 

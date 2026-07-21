@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 // Imports from local layers
 import Sidebar from "../components/chat/Sidebar";
 import ModelSelector from "../components/chat/ModelSelector";
+import EngineSelector from "../components/chat/EngineSelector";
 import FileSelector from "../components/chat/FileSelector";
 import ChatContent from "../components/chat/ChatContent";
 import BudgetDashboard from "../components/chat/BudgetDashboard";
@@ -70,6 +71,7 @@ export default function HomeScreen() {
       model: "general",
       messages: [],
       timestamp: Date.now(),
+      llm: "gemini", // default to Gemini LLM
     };
     setConversations([newChat]);
     setActiveId(newChat.id);
@@ -134,6 +136,7 @@ export default function HomeScreen() {
       model: "general",
       messages: [],
       timestamp: Date.now(),
+      llm: "gemini", // default to Gemini LLM
     };
     const updated = [newChat, ...conversations];
     syncConversations(updated);
@@ -190,6 +193,15 @@ export default function HomeScreen() {
     syncConversations(updated);
   };
 
+  // Update active conversation's LLM engine model
+  const handleSelectLlm = (llm: "gemini" | "smollm" | "sf_financial_qa" | "dpo_adapter") => {
+    if (!activeConversation) return;
+    const updated = conversations.map((c) =>
+      c.id === activeConversation.id ? { ...c, llm } : c
+    );
+    syncConversations(updated);
+  };
+
   const handleSendMessage = async (text: string) => {
     if (!activeConversation || isLoading) return;
 
@@ -228,7 +240,7 @@ export default function HomeScreen() {
       const isConfirm = text.toLowerCase().includes("confirm");
 
       if (activeConversation.model === "research") {
-        const res = await chatService.sendMessage("research", text);
+        const res = await chatService.sendMessage("research", text, activeConversation.llm || "gemini");
         if (res.success && res.data) {
           assistantResponse = `### Research Report Generated\n\nI have generated a research report for you based on **${text}**. You can download the LaTeX compiled PDF document using the link below.`;
           // The server research endpoint returns res.pdfUrl
@@ -240,7 +252,7 @@ export default function HomeScreen() {
         if (!activeConversation.selectedFile) {
           assistantResponse = "Please upload or select a PDF document first before querying.";
         } else {
-          const res = await chatService.sendPdfMessage(text, activeConversation.selectedFile);
+          const res = await chatService.sendPdfMessage(text, activeConversation.selectedFile, activeConversation.llm || "gemini");
           assistantResponse = res.data || "No response generated from file.";
         }
       } else if (activeConversation.model === "budget") {
@@ -248,7 +260,7 @@ export default function HomeScreen() {
         assistantResponse = "Budget planner updated. Please view the dashboard above.";
       } else {
         // general, finance, legal models
-        const res = await chatService.sendMessage(activeConversation.model as any, text);
+        const res = await chatService.sendMessage(activeConversation.model as any, text, activeConversation.llm || "gemini");
         assistantResponse = res.data || "No response received.";
         
         // Replicate web logic for analysis mockups
@@ -403,6 +415,14 @@ export default function HomeScreen() {
             selectedModel={activeConversation.model}
             onSelectModel={handleSelectModel}
           />
+
+          {/* LLM Engine Selector (Only for non-budget modes matching web folder features) */}
+          {activeConversation.model !== "budget" && (
+            <EngineSelector
+              selectedLlm={activeConversation.llm || "gemini"}
+              onSelectLlm={handleSelectLlm}
+            />
+          )}
 
           {/* File Selector Bar (Only for PDF Chat mode) */}
           {activeConversation.model === "pdf" && (
