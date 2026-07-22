@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
@@ -18,10 +18,17 @@ import {
   Square,
   History,
   Clock,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Bot,
+  User,
+  AlertCircle
 } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import type { HistoryItem } from '../types';
+import type { HistoryItem, ChatMessage } from '../types';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Badge } from './ui/badge';
+import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 
 interface AssistantPanelProps {
   showPanel: boolean;
@@ -52,6 +59,8 @@ interface AssistantPanelProps {
   loadHistoryItem: (item: HistoryItem) => void;
   isFocusMode?: boolean;
   setIsFocusMode?: (val: boolean) => void;
+  bgOpacity?: number;
+  chatMessages?: ChatMessage[];
 }
 
 /**
@@ -86,64 +95,80 @@ export function AssistantPanel({
   clearHistory,
   loadHistoryItem,
   isFocusMode,
-  setIsFocusMode
+  setIsFocusMode,
+  bgOpacity = 0.75,
+  chatMessages = []
 }: AssistantPanelProps) {
   const [showHistoryDrawer, setShowHistoryDrawer] = useState<boolean>(false);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll chat thread to bottom when new messages arrive or loading changes
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages, aiResponse, isAiLoading]);
 
   // Render Focus Bar View when in Pure Speakable / Typeable Mode
   if (isFocusMode) {
     return (
-      <div className="assistant-panel focus-bar-mode" style={{ padding: '8px 12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
-            className={`action-btn-secondary ${isListening ? 'listening-pulse' : ''}`}
+      <Card
+        className="w-full backdrop-blur-2xl border-white/20 p-2 shadow-2xl transition-all duration-300"
+        style={{ backgroundColor: `rgba(10, 10, 18, ${bgOpacity})` }}
+      >
+        <div className="flex items-center gap-2">
+          <Button
+            variant={isListening ? "destructive" : "cyan"}
+            size="icon"
+            className={`h-8 w-8 rounded-full ${isListening ? 'animate-pulse' : ''}`}
             onClick={toggleListening}
             title={isListening ? "Listening... Click to stop" : "Speak to Blinky"}
-            style={{ borderRadius: '50%', width: 34, height: 34, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            <Mic size={15} color={isListening ? '#ef4444' : 'var(--accent-cyan)'} />
-          </button>
+            <Mic size={15} />
+          </Button>
 
-          <input
+          <Input
             type="text"
-            className="chat-input-field"
+            className="flex-1 h-8 text-xs bg-white/5 border-white/15"
             placeholder={isListening ? "Listening to your voice..." : "Type or speak to Blinky..."}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleQuerySubmit()}
-            style={{ flex: 1, margin: 0, height: 34 }}
           />
 
-          <button
-            className={`pill-btn ${isVoiceMuted ? 'muted' : ''}`}
+          <Button
+            variant={isVoiceMuted ? "destructive" : "secondary"}
+            size="xs"
+            className="h-8 px-2"
             onClick={() => setIsVoiceMuted(!isVoiceMuted)}
             title={isVoiceMuted ? "Unmute Voice" : "Mute Voice"}
-            style={{ padding: '6px 10px' }}
           >
             {isVoiceMuted ? <VolumeX size={13} /> : <Volume2 size={13} />}
-          </button>
+          </Button>
 
-          <button
-            className="action-btn-primary"
+          <Button
+            variant="accent"
+            size="xs"
+            className="h-8 px-3"
             onClick={handleQuerySubmit}
             disabled={isAiLoading || (!inputValue && !capturedScreenshot)}
-            style={{ height: 34, padding: '0 12px', fontSize: '12px' }}
           >
-            {isAiLoading ? <Loader size={13} className="spin" /> : "Ask"}
-          </button>
+            {isAiLoading ? <Loader size={13} className="animate-spin" /> : "Ask"}
+          </Button>
 
           {setIsFocusMode && (
-            <button
-              className="action-btn-secondary"
+            <Button
+              variant="outline"
+              size="xs"
+              className="h-8 px-2 text-[11px]"
               onClick={() => setIsFocusMode(false)}
               title="Expand Full Panel"
-              style={{ padding: '6px 10px', fontSize: '11px' }}
             >
               Expand
-            </button>
+            </Button>
           )}
         </div>
-      </div>
+      </Card>
     );
   }
 
@@ -154,296 +179,388 @@ export function AssistantPanel({
           initial={{ opacity: 0, y: -10, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -10, scale: 0.98 }}
-          className="assistant-panel"
+          className="assistant-panel w-full max-w-3xl pointer-events-auto"
         >
-          {/* Header containing title, voice mute, and manual screenshot controls */}
-          <div className="panel-header">
-            <div className="panel-title">
-              {activeTab === 'search' ? <Search size={14} /> : <Sparkles size={14} />}
-              <span>
-                {activeTab === 'search' ? 'Meeting Search Console' : 'Context Assistant'}
-              </span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <button
-                className={`pill-btn ${isVoiceMuted ? 'muted' : ''}`}
-                onClick={() => setIsVoiceMuted(!isVoiceMuted)}
-                title={isVoiceMuted ? "Unmute Voice Response" : "Mute Voice Response"}
-              >
-                {isVoiceMuted ? (
-                  <VolumeX size={12} style={{ marginRight: 4 }} />
-                ) : (
-                  <Volume2 size={12} style={{ marginRight: 4 }} />
-                )}
-                {isVoiceMuted ? "Voice Off" : "Voice On"}
-              </button>
-              <button className="pill-btn" onClick={takeManualScreenshot}>
-                <Camera size={12} style={{ marginRight: 4 }} />
-                Capture Context
-              </button>
-            </div>
-          </div>
-
-          {/* Active Speaking Indicator Banner */}
-          {isSpeaking && (
-            <div className="speaking-banner">
-              <div className="speaking-indicator">
-                <span className="audio-wave-bar" />
-                <span className="audio-wave-bar" />
-                <span className="audio-wave-bar" />
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-cyan)' }}>
-                  Speaking response...
+          <Card
+            className="backdrop-blur-2xl border-white/15 shadow-2xl shadow-black overflow-hidden transition-colors duration-300"
+            style={{ backgroundColor: `rgba(10, 10, 18, ${bgOpacity})` }}
+          >
+            {/* Header containing title, voice mute, and manual screenshot controls */}
+            <CardHeader className="flex flex-row items-center justify-between p-3.5 pb-3 border-b border-white/10">
+              <CardTitle className="text-xs font-bold text-white flex items-center gap-2">
+                {activeTab === 'search' ? <Search size={14} className="text-purple-400" /> : <Sparkles size={14} className="text-cyan-400" />}
+                <span>
+                  {activeTab === 'search' ? 'Meeting Search Console' : 'Context Assistant'}
                 </span>
-              </div>
-              <button
-                className="stop-speaking-btn"
-                onClick={stopSpeaking}
-                title="Stop voice output midway"
-              >
-                <Square size={10} fill="currentColor" style={{ marginRight: 4 }} />
-                Stop Speaking
-              </button>
-            </div>
-          )}
+              </CardTitle>
 
-          {/* AI output text block */}
-          <div className="content-block">
-            {isAiLoading ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, opacity: 0.7 }}>
-                <Loader className="spinner" size={14} />
-                <div className="ai-cursor" />{" "}
-                {isGuideMode ? "Locating elements..." : "Thinking..."}
-              </div>
-            ) : isGuideMode ? (
-              <p style={{ margin: 0 }}>
-                “Guide Mode Active. Ask me how to do anything on screen.”
-              </p>
-            ) : (
-              <MarkdownRenderer content={aiResponse} />
-            )}
-          </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={isVoiceMuted ? "destructive" : "secondary"}
+                  size="xs"
+                  className="h-7 px-2.5 gap-1.5"
+                  onClick={() => setIsVoiceMuted(!isVoiceMuted)}
+                  title={isVoiceMuted ? "Unmute Voice Response" : "Mute Voice Response"}
+                >
+                  {isVoiceMuted ? <VolumeX size={12} /> : <Volume2 size={12} />}
+                  <span>{isVoiceMuted ? "Voice Off" : "Voice On"}</span>
+                </Button>
 
-          {/* Quick tabs switching mode under Assist tab */}
-          {activeTab === 'assist' && (
-            <div className="action-row">
-              <div
-                className={`action-item ${!isGuideMode && !showHistoryDrawer ? 'active' : ''}`}
-                onClick={() => {
-                  setIsGuideMode(false);
-                  setShowHistoryDrawer(false);
-                }}
-              >
-                <Sparkles size={12} /> Assist
+                <Button
+                  variant="outline"
+                  size="xs"
+                  className="h-7 px-2.5 gap-1.5 bg-white/5 hover:bg-white/15"
+                  onClick={takeManualScreenshot}
+                >
+                  <Camera size={12} className="text-cyan-400" />
+                  <span>Capture Context</span>
+                </Button>
               </div>
-              <div className="action-dot" />
-              <div
-                className={`action-item ${isGuideMode ? 'active' : ''}`}
-                onClick={() => {
-                  setIsGuideMode(true);
-                  setShowHistoryDrawer(false);
-                }}
-              >
-                <Navigation size={12} /> Guide Me
-              </div>
-              <div className="action-dot" />
-              <div
-                className={`action-item ${showHistoryDrawer ? 'active' : ''}`}
-                onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
-              >
-                <History size={12} /> History ({chatHistory?.length || 0})
-              </div>
-              <div className="action-dot" />
-              <div
-                className="action-item"
-                onClick={() => handleTemplateClick("Suggest 3 followup questions I can ask.")}
-              >
-                <MessageSquare size={12} /> Followups
-              </div>
-            </div>
-          )}
+            </CardHeader>
 
-          {/* Local History Drawer Display */}
-          {showHistoryDrawer && (
-            <div className="history-drawer-container">
-              <div className="history-drawer-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Clock size={12} color="var(--accent-purple)" />
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-main)' }}>
-                    Saved Local Memory ({chatHistory.length})
+            {/* Active Speaking Indicator Banner */}
+            {isSpeaking && (
+              <div className="flex items-center justify-between bg-blue-600/20 border-b border-blue-500/30 px-4 py-1.5">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <span className="w-1 h-3 bg-cyan-400 rounded animate-bounce" />
+                    <span className="w-1 h-3 bg-cyan-400 rounded animate-bounce [animation-delay:0.2s]" />
+                    <span className="w-1 h-3 bg-cyan-400 rounded animate-bounce [animation-delay:0.4s]" />
+                  </div>
+                  <span className="text-xs font-semibold text-cyan-300">
+                    Speaking response...
                   </span>
                 </div>
-                {chatHistory.length > 0 && (
-                  <button className="clear-history-btn" onClick={clearHistory} title="Clear saved history logs">
-                    <Trash2 size={10} style={{ marginRight: 3 }} /> Clear All
-                  </button>
-                )}
+                <Button
+                  variant="destructive"
+                  size="xs"
+                  className="h-6 px-2 text-[10px] gap-1 font-bold"
+                  onClick={stopSpeaking}
+                  title="Stop voice output midway"
+                >
+                  <Square size={9} fill="currentColor" /> Stop Speaking
+                </Button>
               </div>
-              {chatHistory.length === 0 ? (
-                <p className="history-empty-text">No saved chat sessions yet. Ask a query to start logging.</p>
-              ) : (
-                <div className="history-list">
-                  {chatHistory.map((item) => (
+            )}
+
+            <CardContent className="p-4 space-y-4">
+              {/* Chat Thread Container */}
+              <div
+                ref={chatScrollRef}
+                className="min-h-[120px] max-h-[300px] overflow-y-auto pr-2 space-y-3 scrollbar-thin"
+              >
+                {isGuideMode ? (
+                  <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-xl text-xs text-purple-200 flex items-center gap-2">
+                    <Navigation size={14} className="text-purple-400" />
+                    <span>“Guide Mode Active. Speak or ask me how to do anything on your screen.”</span>
+                  </div>
+                ) : chatMessages.length === 0 ? (
+                  /* Initial Greeting Message Bubble */
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-7 h-7 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center shrink-0">
+                      <Bot size={14} className="text-cyan-400" />
+                    </div>
+                    <div className="bg-white/5 border border-white/10 rounded-2xl rounded-tl-none p-3 max-w-[85%] text-xs text-white/90">
+                      <MarkdownRenderer content={aiResponse} />
+                    </div>
+                  </div>
+                ) : (
+                  /* Multi-turn Conversational Chat Bubbles */
+                  chatMessages.map((msg) => (
                     <div
-                      key={item.id}
-                      className="history-item-card"
-                      onClick={() => {
-                        loadHistoryItem(item);
-                        setShowHistoryDrawer(false);
-                      }}
-                      title="Click to reload this chat session"
+                      key={msg.id}
+                      className={`flex items-start gap-2.5 ${
+                        msg.sender === 'user' ? 'justify-end' : 'justify-start'
+                      }`}
                     >
-                      <div className="history-item-top">
-                        <span className="history-item-prompt">
-                          {item.prompt || "Screen Context Analysis"}
-                        </span>
-                        <span className="history-item-time">{item.timestamp}</span>
-                      </div>
-                      {item.base64Screenshot && (
-                        <div className="history-item-screenshot-badge">
-                          <ImageIcon size={10} style={{ marginRight: 3 }} /> Screen Capture Saved
+                      {msg.sender === 'assistant' && (
+                        <div className="w-7 h-7 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center shrink-0 mt-0.5">
+                          <Bot size={14} className="text-cyan-400" />
                         </div>
                       )}
-                      <p className="history-item-response-preview">
-                        {item.response.length > 100 ? item.response.slice(0, 100) + '...' : item.response}
-                      </p>
+
+                      <div
+                        className={`max-w-[85%] rounded-2xl p-3 text-xs leading-relaxed ${
+                          msg.sender === 'user'
+                            ? 'bg-gradient-to-r from-cyan-600/30 to-purple-600/30 border border-cyan-400/40 text-cyan-50 rounded-tr-none shadow-md shadow-cyan-950/40'
+                            : msg.isError
+                            ? 'bg-red-500/15 border border-red-500/40 text-red-200 rounded-tl-none'
+                            : 'bg-white/5 border border-white/10 text-white/90 rounded-tl-none'
+                        }`}
+                      >
+                        {msg.sender === 'user' && (
+                          <div className="flex items-center justify-between text-[10px] text-cyan-300 font-bold mb-1 border-b border-cyan-500/20 pb-1">
+                            <span className="flex items-center gap-1"><User size={10} /> You</span>
+                            <span className="text-white/40">{msg.timestamp}</span>
+                          </div>
+                        )}
+
+                        {msg.base64Screenshot && (
+                          <div className="mb-2">
+                            <img
+                              src={msg.base64Screenshot}
+                              alt="Attached Screen Context"
+                              className="w-32 h-20 object-cover rounded-lg border border-cyan-400/30 shadow-md"
+                            />
+                            <Badge variant="cyan" className="mt-1 text-[9px] px-1 py-0">
+                              <ImageIcon size={9} className="mr-1" /> Screen Context Attached
+                            </Badge>
+                          </div>
+                        )}
+
+                        {msg.isError ? (
+                          <div className="flex items-start gap-2">
+                            <AlertCircle size={14} className="text-red-400 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="m-0 font-semibold">{msg.text}</p>
+                              <Button
+                                variant="destructive"
+                                size="xs"
+                                className="mt-2 h-6 px-2 text-[10px]"
+                                onClick={() => handleQuerySubmit()}
+                              >
+                                <RefreshCw size={10} className="mr-1" /> Retry Query
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <MarkdownRenderer content={msg.text} />
+                        )}
+                      </div>
+
+                      {msg.sender === 'user' && (
+                        <div className="w-7 h-7 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center shrink-0 mt-0.5">
+                          <User size={14} className="text-purple-300" />
+                        </div>
+                      )}
                     </div>
-                  ))}
+                  ))
+                )}
+
+                {isAiLoading && (
+                  <div className="flex items-center gap-2 text-white/70 py-2 pl-9">
+                    <Loader className="animate-spin text-cyan-400" size={14} />
+                    <span className="text-xs">{isGuideMode ? "Locating UI elements..." : "Analyzing screen context..."}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Quick tabs switching mode under Assist tab */}
+              {activeTab === 'assist' && (
+                <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+                  <Button
+                    variant={!isGuideMode && !showHistoryDrawer ? "cyan" : "ghost"}
+                    size="xs"
+                    className="h-7 px-3 gap-1.5"
+                    onClick={() => {
+                      setIsGuideMode(false);
+                      setShowHistoryDrawer(false);
+                    }}
+                  >
+                    <Sparkles size={12} /> Assist
+                  </Button>
+                  <Button
+                    variant={isGuideMode ? "purple" : "ghost"}
+                    size="xs"
+                    className="h-7 px-3 gap-1.5"
+                    onClick={() => {
+                      setIsGuideMode(true);
+                      setShowHistoryDrawer(false);
+                    }}
+                  >
+                    <Navigation size={12} /> Guide Me
+                  </Button>
+                  <Button
+                    variant={showHistoryDrawer ? "default" : "ghost"}
+                    size="xs"
+                    className="h-7 px-3 gap-1.5"
+                    onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
+                  >
+                    <History size={12} /> History ({chatHistory?.length || 0})
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="h-7 px-3 gap-1.5 text-white/70 hover:text-white"
+                    onClick={() => handleTemplateClick("Suggest 3 followup questions I can ask.")}
+                  >
+                    <MessageSquare size={12} /> Followups
+                  </Button>
                 </div>
               )}
-            </div>
-          )}
 
-          {/* Quick search templates under Search tab */}
-          {activeTab === 'search' && (
-            <div className="search-tab-content">
-              <span
-                style={{
-                  fontSize: '11px',
-                  color: 'var(--text-dim)',
-                  fontWeight: 600,
-                  display: 'block',
-                  marginBottom: 6
-                }}
-              >
-                SALES & MEETING TEMPLATES
-              </span>
-              <div className="search-templates">
-                <button
-                  className="template-chip"
-                  onClick={() => handleTemplateClick("Explain the key term or metric on my screen.")}
+              {/* Local History Drawer Display */}
+              {showHistoryDrawer && (
+                <div className="bg-black/60 border border-white/10 rounded-xl p-3 space-y-2 max-h-48 overflow-y-auto">
+                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-white/90">
+                      <Clock size={13} className="text-purple-400" />
+                      <span>Saved Local Memory ({chatHistory.length})</span>
+                    </div>
+                    {chatHistory.length > 0 && (
+                      <Button variant="destructive" size="xs" className="h-6 px-2 text-[10px]" onClick={clearHistory}>
+                        <Trash2 size={10} className="mr-1" /> Clear All
+                      </Button>
+                    )}
+                  </div>
+
+                  {chatHistory.length === 0 ? (
+                    <p className="text-xs text-white/50 py-2">No saved chat sessions yet.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {chatHistory.map((item) => (
+                        <div
+                          key={item.id}
+                          className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-2 cursor-pointer transition-colors"
+                          onClick={() => {
+                            loadHistoryItem(item);
+                            setShowHistoryDrawer(false);
+                          }}
+                        >
+                          <div className="flex justify-between text-[11px] font-semibold text-cyan-300">
+                            <span className="truncate">{item.prompt || "Screen Context Analysis"}</span>
+                            <span className="text-white/40 text-[10px]">{item.timestamp}</span>
+                          </div>
+                          {item.base64Screenshot && (
+                            <Badge variant="cyan" className="mt-1 text-[9px] px-1 py-0">
+                              <ImageIcon size={9} className="mr-1" /> Screenshot Saved
+                            </Badge>
+                          )}
+                          <p className="text-[11px] text-white/70 line-clamp-2 mt-1">
+                            {item.response}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Quick search templates under Search tab */}
+              {activeTab === 'search' && (
+                <div className="space-y-2 pt-2 border-t border-white/10">
+                  <span className="text-[10px] font-extrabold tracking-wider text-white/50 uppercase">
+                    SALES & MEETING TEMPLATES
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Button
+                      variant="secondary"
+                      size="xs"
+                      className="h-7 gap-1.5 text-[11px] bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/30 text-purple-300"
+                      onClick={() => handleTemplateClick("Explain the key term or metric on my screen.")}
+                    >
+                      <Zap size={11} /> Explain Metric
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="xs"
+                      className="h-7 gap-1.5 text-[11px] bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-300"
+                      onClick={() => handleTemplateClick("Give me a professional objection handler for what is visible on screen.")}
+                    >
+                      <MessageSquare size={11} /> Objection Handler
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="xs"
+                      className="h-7 gap-1.5 text-[11px] bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 text-emerald-300"
+                      onClick={() => handleTemplateClick("Verify claims and fact check what is on screen.")}
+                    >
+                      <ShieldCheck size={11} /> Fact Checker
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="xs"
+                      className="h-7 gap-1.5 text-[11px] bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-300"
+                      onClick={() => handleTemplateClick("List visible action items and next steps.")}
+                    >
+                      <Play size={11} /> Extract Todo
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Screen capture preview block */}
+              {capturedScreenshot && (
+                <div className="flex items-center gap-3 bg-white/5 border border-white/15 rounded-xl p-2">
+                  <img
+                    src={capturedScreenshot}
+                    className="w-16 h-12 object-cover rounded-lg border border-white/20"
+                    alt="Capture Preview"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-white flex items-center gap-1">
+                      <Camera size={11} className="text-cyan-400" /> Active Screen Context
+                    </div>
+                    <div className="text-[10px] text-white/60 truncate">
+                      Captured snapshot will be attached with your query.
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={takeManualScreenshot} title="Retake">
+                      <RefreshCw size={12} />
+                    </Button>
+                    <Button variant="destructive" size="icon" className="h-7 w-7" onClick={clearScreenshot} title="Remove">
+                      <Trash2 size={12} />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Text and voice input submission controllers */}
+              <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+                {speechSupported && (
+                  <Button
+                    variant={isListening ? "destructive" : "cyan"}
+                    size="icon"
+                    className={`h-9 w-9 rounded-xl ${isListening ? 'animate-pulse ring-2 ring-red-500' : ''}`}
+                    onClick={toggleListening}
+                    title={isListening ? "Listening... Click to stop" : "Speak to Blinky"}
+                    type="button"
+                  >
+                    <Mic size={15} />
+                  </Button>
+                )}
+
+                <Input
+                  type="text"
+                  className="flex-1 h-9 text-xs"
+                  placeholder={isGuideMode ? "How do I click..." : "Ask about your screen..."}
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleQuerySubmit()}
+                />
+
+                <label className="flex items-center gap-1.5 text-[11px] text-white/70 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="rounded accent-cyan-400 cursor-pointer"
+                    checked={autoAttachScreenshot}
+                    onChange={(e) => setAutoAttachScreenshot(e.target.checked)}
+                  />
+                  <span>Auto-Screen</span>
+                </label>
+
+                <Button
+                  variant="purple"
+                  size="xs"
+                  className="h-9 px-3 gap-1"
+                  onClick={handleSmart}
+                  title="Query text model only"
                 >
-                  <Zap size={10} color="var(--accent-purple)" /> Explain Metric
-                </button>
-                <button
-                  className="template-chip"
-                  onClick={() =>
-                    handleTemplateClick(
-                      "Give me a professional objection handler for what is visible on my screen."
-                    )
-                  }
+                  <Zap size={12} /> Smart
+                </Button>
+
+                <Button
+                  variant="accent"
+                  size="icon"
+                  className="h-9 w-9 rounded-xl"
+                  onClick={() => handleQuerySubmit()}
                 >
-                  <MessageSquare size={10} color="var(--accent-orange)" /> Objection Handler
-                </button>
-                <button
-                  className="template-chip"
-                  onClick={() =>
-                    handleTemplateClick("Verify the claims and fact check what is on my screen.")
-                  }
-                >
-                  <ShieldCheck size={10} color="var(--accent-green)" /> Fact Checker
-                </button>
-                <button
-                  className="template-chip"
-                  onClick={() => handleTemplateClick("List the visible action items and next steps.")}
-                >
-                  <Play size={10} color="var(--accent-blue)" /> Extract Todo
-                </button>
+                  <Play size={12} fill="currentColor" />
+                </Button>
               </div>
-            </div>
-          )}
-
-          {/* Screen capture preview block with delete/retake capabilities */}
-          {capturedScreenshot && (
-            <div className="screenshot-preview-container">
-              <img
-                src={capturedScreenshot}
-                className="screenshot-thumbnail"
-                alt="Capture Preview"
-              />
-              <div className="screenshot-info">
-                <span className="screenshot-title">
-                  <Camera size={10} /> Active Screen Context
-                </span>
-                <span className="screenshot-desc">
-                  This snapshot will be passed to Gemini for screen awareness.
-                </span>
-              </div>
-              <div className="screenshot-actions">
-                <button
-                  className="screenshot-btn"
-                  onClick={takeManualScreenshot}
-                  title="Retake Screenshot"
-                >
-                  <RefreshCw size={12} />
-                </button>
-                <button
-                  className="screenshot-btn danger"
-                  onClick={clearScreenshot}
-                  title="Remove Screen Context"
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Text and voice input submission controllers */}
-          <div className="input-container">
-            {speechSupported && (
-              <button
-                className={`chat-mic-btn ${isListening ? 'active' : ''}`}
-                onClick={toggleListening}
-                title={isListening ? "Listening... Click to stop" : "Speak to Inqora"}
-                type="button"
-              >
-                <Mic size={14} />
-              </button>
-            )}
-            <input
-              type="text"
-              className="input-field"
-              placeholder={isGuideMode ? "How do I click..." : "Ask about your screen or search terms..."}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleQuerySubmit()}
-            />
-
-            {/* Checkbox syncing automatic screen capture on query submits */}
-            <label
-              className="auto-attach-label"
-              title="Automatically capture screen when sending query"
-            >
-              <input
-                type="checkbox"
-                className="auto-attach-checkbox"
-                checked={autoAttachScreenshot}
-                onChange={(e) => setAutoAttachScreenshot(e.target.checked)}
-              />
-              <span>Auto-Screen</span>
-            </label>
-
-            <button
-              className="smart-btn"
-              onClick={handleSmart}
-              title="Queries Gemini Text Only"
-            >
-              <Zap size={12} style={{ marginRight: 2 }} /> Smart
-            </button>
-
-            <button className="play-btn" onClick={() => handleQuerySubmit()}>
-              <Play size={12} fill="currentColor" />
-            </button>
-          </div>
+            </CardContent>
+          </Card>
         </motion.div>
       )}
     </AnimatePresence>

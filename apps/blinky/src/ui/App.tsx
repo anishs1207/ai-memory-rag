@@ -6,7 +6,7 @@ import { AssistantPanel } from './components/AssistantPanel';
 import { AIHereBrowser, type BrowserStep } from './components/AIHereBrowser';
 import { LogoBar } from './components/LogoBar';
 import type { ExecutionLog } from './components/VoiceActionPanel';
-import type { HistoryItem } from './types';
+import type { HistoryItem, ChatMessage } from './types';
 
 /**
  * App is the root container of Inqora's blinky client application.
@@ -87,6 +87,7 @@ function App() {
 
   // --- LOCAL CHAT HISTORY PERSISTENCE STATE & HANDLERS ---
   const [chatHistory, setChatHistory] = useState<HistoryItem[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
   // Auto-load saved local history on app launch
   useEffect(() => {
@@ -166,6 +167,7 @@ function App() {
 
   // Sync mixed click-through pointer events on overlay windows to ignore clicks
   useEffect(() => {
+    // Normal Dashboard Mode: keep window 100% interactive for all clicks, inputs, and tab switches
     if (!isGuideMode && !clickThrough) {
       window.electron.setIgnoreMouseEvents(false);
       return;
@@ -173,17 +175,22 @@ function App() {
 
     const handleMouseMove = (event: MouseEvent) => {
       const targetElement = event.target as HTMLElement;
-      // Re-enable clicks if mouse is over interactive panel, top-bar, step navigation, or exit guide elements
+      // Re-enable clicks if mouse is over interactive panel, top-bar, step navigation, or any button/input
       if (
-        targetElement.closest('.interactive-overlay') ||
-        targetElement.closest('.top-bar') ||
-        targetElement.closest('.assistant-panel') ||
-        targetElement.closest('.clicky-container') ||
-        targetElement.closest('.step-navigation-bar') ||
-        targetElement.closest('.step-nav-btn') ||
-        targetElement.closest('.exit-guide-btn') ||
-        targetElement.closest('.guide-voice-bubble') ||
-        targetElement.closest('.logo-bar-container')
+        targetElement && (
+          targetElement.closest('.interactive-overlay') ||
+          targetElement.closest('.top-bar') ||
+          targetElement.closest('.assistant-panel') ||
+          targetElement.closest('.logo-bar-container') ||
+          targetElement.closest('.clicky-container') ||
+          targetElement.closest('.step-navigation-bar') ||
+          targetElement.closest('.step-nav-btn') ||
+          targetElement.closest('.exit-guide-btn') ||
+          targetElement.closest('.guide-voice-bubble') ||
+          targetElement.closest('button') ||
+          targetElement.closest('input') ||
+          targetElement.closest('[role="button"]')
+        )
       ) {
         window.electron.setIgnoreMouseEvents(false);
       } else {
@@ -193,7 +200,7 @@ function App() {
     };
 
     window.addEventListener('mousemove', handleMouseMove);
-    // Initially ignore mouse events so clicks pass through by default
+    // Initially set pass-through only when click-through or guide mode is actively enabled
     window.electron.setIgnoreMouseEvents(true, { forward: true });
 
     return () => {
@@ -273,12 +280,27 @@ function App() {
     }
   }, []);
 
-  // Stop current speech synthesis midway
+  /**
+   * Strips markdown code blocks, formatting characters, and links
+   * so SpeechSynthesis produces natural spoken output without reading syntax symbols.
+   */
+  const cleanMarkdownForSpeech = (markdownText: string): string => {
+    if (!markdownText) return '';
+    return markdownText
+      .replace(/```[\s\S]*?```/g, 'Code block omitted.')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/[*_~#]/g, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/<[^>]*>/g, '')
+      .trim();
+  };
+
+  // Stop current speech synthesis midway and immediately reset state
   const stopSpeaking = useCallback(() => {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
-      setIsSpeaking(false);
     }
+    setIsSpeaking(false);
   }, []);
 
   // Sync mute toggle to immediately halt ongoing speech
@@ -295,15 +317,21 @@ function App() {
     // Cancel any previous speech output before speaking new response
     window.speechSynthesis.cancel();
 
-    // Do not speak if voice response is muted
+    // Do not speak if voice response is muted or string is empty
     if (isVoiceMuted || !text.trim()) {
       setIsSpeaking(false);
       return;
     }
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.1;
-    utterance.pitch = 1.1;
+    const cleanSpokenText = cleanMarkdownForSpeech(text);
+    if (!cleanSpokenText) {
+      setIsSpeaking(false);
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(cleanSpokenText);
+    utterance.rate = 1.05;
+    utterance.pitch = 1.0;
 
     utterance.onstart = () => {
       setIsSpeaking(true);
@@ -314,7 +342,7 @@ function App() {
     };
 
     utterance.onerror = (event) => {
-      console.error("Speech synthesis error:", event);
+      console.warn("Speech synthesis notice:", event);
       setIsSpeaking(false);
     };
 
@@ -367,25 +395,34 @@ function App() {
       if (!fullScreenBase64) return;
       const img = new Image();
       img.onload = () => {
+        // Calculate resolution scaling ratio between full-screen snapshot and browser viewport
+        const scaleX = img.naturalWidth / window.innerWidth;
+        const scaleY = img.naturalHeight / window.innerHeight;
+
+        const cropX = cropRect.x * scaleX;
+        const cropY = cropRect.y * scaleY;
+        const cropW = cropRect.width * scaleX;
+        const cropH = cropRect.height * scaleY;
+
         const canvas = document.createElement('canvas');
-        canvas.width = cropRect.width;
-        canvas.height = cropRect.height;
+        canvas.width = cropW;
+        canvas.height = cropH;
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(
             img,
-            cropRect.x,
-            cropRect.y,
-            cropRect.width,
-            cropRect.height,
+            cropX,
+            cropY,
+            cropW,
+            cropH,
             0,
             0,
-            cropRect.width,
-            cropRect.height
+            cropW,
+            cropH
           );
           const croppedDataUrl = canvas.toDataURL('image/jpeg');
           setCapturedScreenshot(croppedDataUrl);
-          setAiResponse("Circled region captured! Type your question or click Assist.");
+          setAiResponse("Circled region captured! Ask a question or click Assist.");
           speak("Circled region captured. What would you like to know about it?");
         }
       };
@@ -401,9 +438,22 @@ function App() {
     if (!query && !capturedScreenshot && !autoAttachScreenshot) return;
     setIsAiLoading(true);
 
+    const timestampStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const currentCapturedScreen = capturedScreenshot;
+
     try {
       const base64Data = await getScreenContext();
       let response = "";
+
+      // Append user's query bubble to chat thread
+      const userMsg: ChatMessage = {
+        id: `user-${Date.now()}`,
+        sender: 'user',
+        text: query || (currentCapturedScreen || base64Data ? "Screen Context Analysis" : "Screen Query"),
+        timestamp: timestampStr,
+        base64Screenshot: currentCapturedScreen || (base64Data ? `data:image/jpeg;base64,${base64Data}` : undefined),
+      };
+      setChatMessages((prev) => [...prev, userMsg]);
 
       if (base64Data) {
         let prompt = query || "Summarize what you see on my screen in a few helpful bullet points.";
@@ -435,11 +485,34 @@ function App() {
 
       setAiResponse(response);
       speak(response);
-      saveHistoryEntry(query, response, capturedScreenshot || (base64Data ? `data:image/jpeg;base64,${base64Data}` : null));
+
+      // Append assistant's response bubble to chat thread
+      const assistantMsg: ChatMessage = {
+        id: `assistant-${Date.now()}`,
+        sender: 'assistant',
+        text: response,
+        timestamp: timestampStr,
+      };
+      setChatMessages((prev) => [...prev, assistantMsg]);
+
+      saveHistoryEntry(query, response, currentCapturedScreen || (base64Data ? `data:image/jpeg;base64,${base64Data}` : null));
       setCapturedScreenshot(null);
     } catch (err) {
       console.error('Assist error:', err);
-      setAiResponse("Sorry, I had trouble reaching the AI service.");
+      const is503 = String(err).includes('503') || String(err).includes('Service Unavailable');
+      const errText = is503
+        ? "Gemini API is currently experiencing high demand (503 Service Unavailable). Please click Retry below."
+        : "Sorry, I had trouble reaching the AI service. Please check your connection.";
+
+      setAiResponse(errText);
+      const errorMsg: ChatMessage = {
+        id: `error-${Date.now()}`,
+        sender: 'assistant',
+        text: errText,
+        timestamp: timestampStr,
+        isError: true,
+      };
+      setChatMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsAiLoading(false);
     }
@@ -850,14 +923,14 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
 
   // --- MOUSE HOVER CONTROLS FOR CLICK-THROUGH ---
   const handleMouseEnter = () => {
-    if (isGuideMode || clickThrough) {
-      window.electron.setIgnoreMouseEvents(false);
-    }
+    window.electron.setIgnoreMouseEvents(false);
   };
 
   const handleMouseLeave = () => {
     if (isGuideMode || clickThrough) {
       window.electron.setIgnoreMouseEvents(true, { forward: true });
+    } else {
+      window.electron.setIgnoreMouseEvents(false);
     }
   };
 
@@ -879,6 +952,12 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
         isRegionSelecting={isRegionSelecting}
         setIsRegionSelecting={setIsRegionSelecting}
         onRegionSelected={handleRegionSelected}
+        speechSupported={speechSupported}
+        isListening={isListening}
+        toggleListening={toggleListening}
+        guideInput={inputValue}
+        setGuideInput={setInputValue}
+        handleGuideQuerySubmit={handleQuerySubmit}
       />
 
       <div
@@ -887,31 +966,33 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
         onMouseLeave={handleMouseLeave}
         style={{ display: isGuideMode ? 'none' : 'flex' }}
       >
-        {/* Top Control Bar */}
-        <TopControlBar
-          windowMode={windowMode}
-          setWindowMode={setWindowMode}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          clickThrough={clickThrough}
-          setClickThrough={setClickThrough}
-          contentProtected={contentProtected}
-          setContentProtected={setContentProtected}
-          bgOpacity={bgOpacity}
-          setBgOpacity={setBgOpacity}
-          inputValue={inputValue}
-          setInputValue={setInputValue}
-          handleQuerySubmit={handleQuerySubmit}
-          showPanel={showPanel}
-          setShowPanel={setShowPanel}
-          isVoiceMuted={isVoiceMuted}
-          setIsVoiceMuted={setIsVoiceMuted}
-          cursorColor={cursorColor}
-          setCursorColor={setCursorColor}
-          startRegionSelection={startRegionSelection}
-          isFocusMode={isFocusMode}
-          setIsFocusMode={setIsFocusMode}
-        />
+        {/* Top Control Bar (Hidden in Minimal Logo Mode) */}
+        {windowMode !== 'logo' && (
+          <TopControlBar
+            windowMode={windowMode}
+            setWindowMode={setWindowMode}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            clickThrough={clickThrough}
+            setClickThrough={setClickThrough}
+            contentProtected={contentProtected}
+            setContentProtected={setContentProtected}
+            bgOpacity={bgOpacity}
+            setBgOpacity={setBgOpacity}
+            inputValue={inputValue}
+            setInputValue={setInputValue}
+            handleQuerySubmit={handleQuerySubmit}
+            showPanel={showPanel}
+            setShowPanel={setShowPanel}
+            isVoiceMuted={isVoiceMuted}
+            setIsVoiceMuted={setIsVoiceMuted}
+            cursorColor={cursorColor}
+            setCursorColor={setCursorColor}
+            startRegionSelection={startRegionSelection}
+            isFocusMode={isFocusMode}
+            setIsFocusMode={setIsFocusMode}
+          />
+        )}
 
         {/* 1. Minimal Logo Mode Pill */}
         {windowMode === 'logo' && (
@@ -949,6 +1030,8 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
             loadHistoryItem={loadHistoryItem}
             isFocusMode={isFocusMode}
             setIsFocusMode={setIsFocusMode}
+            bgOpacity={bgOpacity}
+            chatMessages={chatMessages}
           />
         )}
 

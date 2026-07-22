@@ -15,6 +15,15 @@ export interface HistoryItem {
   screenshotPath?: string;
 }
 
+export interface ChatMessage {
+  id: string;
+  sender: 'user' | 'assistant';
+  text: string;
+  timestamp: string;
+  base64Screenshot?: string;
+  isError?: boolean;
+}
+
 export interface ElectronAPI {
   getSources: () => Promise<ScreenSource[]>;
   setWindowSize: (width: number, height: number) => void;

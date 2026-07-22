@@ -19,6 +19,8 @@ import {
   Palette,
   Mic
 } from 'lucide-react';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
 
 interface TopControlBarProps {
   windowMode: 'toolbar' | 'panel' | 'stealth' | 'aihere' | 'logo';
@@ -74,171 +76,194 @@ export function TopControlBar({
   setIsFocusMode
 }: TopControlBarProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
+
   return (
-    <div className="top-bar">
+    <div
+      className="top-bar flex items-center gap-2.5 bg-black/80 backdrop-blur-2xl px-3.5 py-1.5 rounded-full border border-white/15 shadow-2xl shadow-black/80 pointer-events-auto select-none transition-all duration-300 max-w-full"
+      onMouseEnter={() => window.electron?.setIgnoreMouseEvents(false)}
+    >
       {/* Brand logo display */}
-      <div className="top-bar-logo">
-        <BrainCircuit size={15} color="var(--accent-cyan)" />
+      <div className="flex items-center gap-1.5 text-cyan-400 font-extrabold text-xs tracking-wider">
+        <BrainCircuit size={16} className="text-cyan-400 animate-pulse" />
         {windowMode !== 'stealth' && (
-          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, letterSpacing: '0.5px' }}>
+          <span className="font-extrabold text-xs tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">
             BLINKY
           </span>
         )}
       </div>
 
-      <div className="toolbar-separator" />
+      <div className="h-4 w-px bg-white/15 mx-0.5" />
 
       {/* Focus Mode Quick Toggle */}
       {setIsFocusMode && (
-        <button
-          className={`control-icon-btn ${isFocusMode ? 'active success' : ''}`}
+        <Button
+          variant={isFocusMode ? "cyan" : "ghost"}
+          size="icon"
+          className="h-7 w-7 rounded-lg"
           onClick={() => setIsFocusMode(!isFocusMode)}
-          title={isFocusMode ? "Exit Focus Mode (Show Full Panel)" : "Enter Speakable/Typeable Focus Bar Mode"}
-          style={{ marginRight: 4 }}
+          onMouseEnter={() => window.electron?.setIgnoreMouseEvents(false)}
+          title={isFocusMode ? "Exit Focus Mode" : "Enter Speakable Focus Bar Mode"}
         >
           <Mic size={13} />
-        </button>
+        </Button>
       )}
 
       {/* Tabs directing layout and operation modes */}
-      <div className="nav-tabs">
-        <button
-          className={`nav-tab-btn ${activeTab === 'assist' && windowMode !== 'aihere' ? 'active' : ''}`}
+      <div className="flex gap-1 bg-white/5 p-1 rounded-xl border border-white/10">
+        <Button
+          variant={activeTab === 'assist' && windowMode !== 'aihere' ? "default" : "ghost"}
+          size="xs"
+          className="h-6 px-2 text-[11px] gap-1.5"
           onClick={() => {
             setActiveTab('assist');
             setWindowMode('panel');
           }}
+          onMouseEnter={() => window.electron?.setIgnoreMouseEvents(false)}
           title="Assistant Panel"
         >
-          <MessageSquare size={13} />
+          <MessageSquare size={12} />
           {windowMode !== 'stealth' && <span>Assist</span>}
-        </button>
-        <button
-          className={`nav-tab-btn ${activeTab === 'search' && windowMode !== 'aihere' ? 'active' : ''}`}
+        </Button>
+        <Button
+          variant={activeTab === 'search' && windowMode !== 'aihere' ? "default" : "ghost"}
+          size="xs"
+          className="h-6 px-2 text-[11px] gap-1.5"
           onClick={() => {
             setActiveTab('search');
             setWindowMode('panel');
           }}
+          onMouseEnter={() => window.electron?.setIgnoreMouseEvents(false)}
           title="Meeting Search Console"
         >
-          <Search size={13} />
+          <Search size={12} />
           {windowMode !== 'stealth' && <span>Search</span>}
-        </button>
-        <button
-          className={`nav-tab-btn ${windowMode === 'aihere' ? 'active' : ''}`}
+        </Button>
+        <Button
+          variant={windowMode === 'aihere' ? "default" : "ghost"}
+          size="xs"
+          className="h-6 px-2 text-[11px] gap-1.5"
           onClick={() => setWindowMode('aihere')}
+          onMouseEnter={() => window.electron?.setIgnoreMouseEvents(false)}
           title="AI Here Browser"
         >
-          <Globe size={13} />
+          <Globe size={12} />
           {windowMode !== 'stealth' && <span>AI Here</span>}
-        </button>
+        </Button>
       </div>
 
-      <div className="toolbar-separator" />
+      <div className="h-4 w-px bg-white/15 mx-0.5" />
 
       {/* Buttons switching visual window size/layouts */}
-      <div style={{ display: 'flex', gap: 2 }}>
-        <button
-          className={`control-icon-btn ${windowMode === 'logo' ? 'active' : ''}`}
+      <div className="flex gap-1">
+        <Button
+          variant={windowMode === 'logo' ? "purple" : "ghost"}
+          size="icon"
+          className="h-7 w-7 rounded-lg"
           onClick={() => setWindowMode('logo')}
-          title="Minimal Logo Mode (Shrink panel to brand logo pill)"
+          onMouseEnter={() => window.electron?.setIgnoreMouseEvents(false)}
+          title="Minimal Logo Mode"
         >
-          <BrainCircuit size={13} color="var(--accent-purple)" />
-        </button>
-        <button
-          className={`control-icon-btn ${windowMode === 'toolbar' ? 'active' : ''}`}
+          <BrainCircuit size={13} className="text-purple-400" />
+        </Button>
+        <Button
+          variant={windowMode === 'toolbar' ? "default" : "ghost"}
+          size="icon"
+          className="h-7 w-7 rounded-lg"
           onClick={() => setWindowMode('toolbar')}
+          onMouseEnter={() => window.electron?.setIgnoreMouseEvents(false)}
           title="Toolbar Mode"
         >
           <Minimize2 size={13} />
-        </button>
-        <button
-          className={`control-icon-btn ${windowMode === 'stealth' ? 'active' : ''}`}
+        </Button>
+        <Button
+          variant={windowMode === 'stealth' ? "default" : "ghost"}
+          size="icon"
+          className="h-7 w-7 rounded-lg"
           onClick={() => setWindowMode('stealth')}
-          title="Stealth Mode (Overlay text only)"
+          onMouseEnter={() => window.electron?.setIgnoreMouseEvents(false)}
+          title="Stealth Mode"
         >
           <EyeOff size={13} />
-        </button>
-        <button
-          className={`control-icon-btn ${windowMode === 'panel' ? 'active' : ''}`}
+        </Button>
+        <Button
+          variant={windowMode === 'panel' ? "default" : "ghost"}
+          size="icon"
+          className="h-7 w-7 rounded-lg"
           onClick={() => setWindowMode('panel')}
+          onMouseEnter={() => window.electron?.setIgnoreMouseEvents(false)}
           title="Standard Panel Mode"
         >
           <Maximize2 size={13} />
-        </button>
+        </Button>
       </div>
 
-      <div className="toolbar-separator" />
+      <div className="h-4 w-px bg-white/15 mx-0.5" />
 
-      {/* Toggle options for click events through the overlay and transparency settings */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        {/* Click-Through Toggle */}
-        <button
-          className={`control-icon-btn ${clickThrough ? 'active warning' : ''}`}
+      {/* Toggle options for click events through overlay and transparency settings */}
+      <div className="flex items-center gap-1.5">
+        <Button
+          variant={clickThrough ? "destructive" : "ghost"}
+          size="icon"
+          className="h-7 w-7 rounded-lg"
           onClick={() => setClickThrough(!clickThrough)}
-          title={clickThrough ? "Click-Through Enabled (Clicks pass through outside header)" : "Enable Click-Through"}
+          onMouseEnter={() => window.electron?.setIgnoreMouseEvents(false)}
+          title={clickThrough ? "Click-Through Enabled (Hover or click to toggle OFF)" : "Enable Click-Through"}
         >
           <MousePointer size={13} />
-        </button>
+        </Button>
 
-        {/* Content Protection Toggle (screen-sharing masking) */}
-        <button
-          className={`control-icon-btn ${contentProtected ? 'active success' : ''}`}
+        <Button
+          variant={contentProtected ? "cyan" : "ghost"}
+          size="icon"
+          className="h-7 w-7 rounded-lg"
           onClick={() => setContentProtected(!contentProtected)}
-          title={contentProtected ? "Hidden from Screen Share (Invisible overlay active)" : "Hide from Screen Share"}
+          title={contentProtected ? "Hidden from Screen Share" : "Hide from Screen Share"}
         >
           {contentProtected ? <ShieldCheck size={13} /> : <ShieldAlert size={13} />}
-        </button>
+        </Button>
 
-        {/* Voice Mute Toggle */}
-        <button
-          className={`control-icon-btn ${isVoiceMuted ? 'active warning' : ''}`}
+        <Button
+          variant={isVoiceMuted ? "destructive" : "ghost"}
+          size="icon"
+          className="h-7 w-7 rounded-lg"
           onClick={() => setIsVoiceMuted(!isVoiceMuted)}
-          title={isVoiceMuted ? "Unmute Agent Voice Response" : "Mute Agent Voice Response"}
+          title={isVoiceMuted ? "Unmute Voice Response" : "Mute Voice Response"}
         >
           {isVoiceMuted ? <VolumeX size={13} /> : <Volume2 size={13} />}
-        </button>
+        </Button>
 
-        {/* Region Circling / Drag Tool */}
-        <button
-          className="control-icon-btn"
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 rounded-lg text-cyan-400 hover:text-cyan-300"
           onClick={startRegionSelection}
           title="Circle or Drag to Select Screen Region"
         >
-          <Crop size={13} color="var(--accent-cyan)" />
-        </button>
+          <Crop size={13} />
+        </Button>
 
         {/* Cursor Color Theme Selector */}
-        <div style={{ position: 'relative' }}>
-          <button
-            className="control-icon-btn"
+        <div className="relative">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 rounded-lg"
             onClick={() => setShowColorPicker(!showColorPicker)}
             title={`Cursor Theme: ${cursorColor}`}
           >
-            <Palette size={13} style={{ color: `var(--cursor-main, #00f2fe)` }} />
-          </button>
+            <Palette size={13} className="text-cyan-400" />
+          </Button>
 
           {showColorPicker && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '110%',
-                right: 0,
-                background: 'rgba(15,15,25,0.95)',
-                border: '1px solid rgba(255,255,255,0.15)',
-                borderRadius: '8px',
-                padding: '6px',
-                display: 'flex',
-                gap: 6,
-                zIndex: 1000
-              }}
-            >
+            <div className="absolute top-9 right-0 bg-black/95 border border-white/20 rounded-xl p-2 flex gap-2 z-50 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
               {(['cyan', 'purple', 'green', 'orange', 'gold'] as const).map((color) => (
                 <div
                   key={color}
-                  className={`color-option-dot ${cursorColor === color ? 'selected' : ''}`}
+                  className={`w-4 h-4 rounded-full cursor-pointer transition-all duration-200 hover:scale-125 ${
+                    cursorColor === color ? 'ring-2 ring-white scale-110 shadow-lg' : 'opacity-80'
+                  }`}
                   style={{
-                    background:
+                    backgroundColor:
                       color === 'cyan' ? '#00f2fe' :
                       color === 'purple' ? '#aa3bff' :
                       color === 'green' ? '#10b981' :
@@ -248,16 +273,16 @@ export function TopControlBar({
                     setCursorColor(color);
                     setShowColorPicker(false);
                   }}
-                  title={`Select ${color} cursor aura`}
+                  title={`Select ${color} aura`}
                 />
               ))}
             </div>
           )}
         </div>
 
-        {/* Dynamic Opacity input range (supports 0.0 for 100% full background transparency) */}
-        <div className="opacity-slider-container">
-          <SlidersHorizontal size={12} />
+        {/* Dynamic Opacity Slider */}
+        <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-2 py-1 rounded-xl">
+          <SlidersHorizontal size={11} className="text-white/60" />
           <input
             type="range"
             min="0.0"
@@ -265,7 +290,7 @@ export function TopControlBar({
             step="0.05"
             value={bgOpacity}
             onChange={(e) => setBgOpacity(parseFloat(e.target.value))}
-            className="opacity-slider"
+            className="w-14 h-1 accent-cyan-400 cursor-pointer bg-white/20 rounded-lg appearance-none"
             title={`Transparency: ${Math.round((1 - bgOpacity) * 100)}%`}
           />
         </div>
@@ -273,33 +298,35 @@ export function TopControlBar({
 
       {/* Compact input query bar visible in minimal Toolbar mode */}
       {windowMode === 'toolbar' && (
-        <div className="toolbar-input-wrapper">
-          <input
+        <div className="flex items-center gap-1.5 ml-2">
+          <Input
             type="text"
-            className="toolbar-input"
-            placeholder="Ask Inqora about screen..."
+            className="h-7 w-48 text-xs bg-black/60 border-white/20"
+            placeholder="Ask Blinky..."
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleQuerySubmit()}
           />
-          <button className="toolbar-send-btn" onClick={() => handleQuerySubmit()}>
-            <Play size={8} fill="currentColor" />
-          </button>
+          <Button size="icon" className="h-7 w-7 rounded-lg bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40" onClick={() => handleQuerySubmit()}>
+            <Play size={10} fill="currentColor" />
+          </Button>
         </div>
       )}
 
       {/* Collapse/Expand toggle button */}
       {windowMode !== 'toolbar' && windowMode !== 'aihere' && (
-        <button className="top-bar-btn" onClick={() => setShowPanel(!showPanel)}>
+        <Button
+          variant="ghost"
+          size="xs"
+          className="h-7 px-2 text-[11px] gap-1 text-white/80 hover:text-white"
+          onClick={() => setShowPanel(!showPanel)}
+        >
           <ChevronDown
             size={12}
-            style={{
-              transform: showPanel ? 'rotate(0deg)' : 'rotate(180deg)',
-              transition: 'transform 0.3s'
-            }}
+            className={`transition-transform duration-300 ${showPanel ? 'rotate-0' : 'rotate-180'}`}
           />
           {showPanel ? 'Hide' : 'Show'}
-        </button>
+        </Button>
       )}
     </div>
   );
