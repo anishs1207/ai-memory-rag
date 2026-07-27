@@ -1,0 +1,26 @@
+[
+  {
+    "query": "Implement a rate-limited API-key rotation endpoint with validation, atomic revocation, audit logging, and integration tests.",
+    "should_trigger": true
+  },
+  {
+    "query": "Our order creation route occasionally double-charges retries. Trace the server flow and make the endpoint idempotent without changing its response contract.",
+    "should_trigger": true
+  },
+  {
+    "query": "Add a repository and service layer for tenant-scoped webhook subscriptions, then expose CRUD endpoints with consistent errors.",
+    "should_trigger": true
+  },
+  {
+    "query": "Create a polished settings screen that lets users copy and revoke API keys; use the existing mocked client calls.",
+    "should_trigger": false
+  },
+  {
+    "query": "Review this API migration plan by interviewing me one decision at a time and challenge every assumption.",
+    "should_trigger": false
+  },
+  {
+    "query": "Rewrite the API documentation examples for clarity; do not change server behavior or code.",
+    "should_trigger": false
+  }
+]

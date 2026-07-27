@@ -1,7 +1,16 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { contextBridge, ipcRenderer } = require('electron');
 
-
+interface HistoryItem {
+  id: string;
+  prompt: string;
+  response: string;
+  timestamp: string;
+  isVoiceMuted?: boolean;
+  hasScreenshot?: boolean;
+  base64Screenshot?: string;
+  screenshotPath?: string;
+}
 contextBridge.exposeInMainWorld('electron', {
   platform: process.platform,
   getSources: () => ipcRenderer.invoke('get-sources'),
@@ -17,7 +26,7 @@ contextBridge.exposeInMainWorld('electron', {
   executeSystemCommand: (command: string) => ipcRenderer.invoke('execute-system-command', command),
   executePowershellScript: (script: string) => ipcRenderer.invoke('execute-powershell-script', script),
   // Local History Persistence methods
-  saveChatHistory: (history: any[]) => ipcRenderer.invoke('save-chat-history', history),
+  saveChatHistory: (history: HistoryItem[]) => ipcRenderer.invoke('save-chat-history', history),
   loadChatHistory: () => ipcRenderer.invoke('load-chat-history'),
   clearChatHistory: () => ipcRenderer.invoke('clear-chat-history'),
 });

@@ -15,6 +15,16 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 const gemmaModel = model;
 
+interface HistoryItem {
+  id: string;
+  prompt: string;
+  response: string;
+  timestamp: string;
+  isVoiceMuted?: boolean;
+  hasScreenshot?: boolean;
+  base64Screenshot?: string;
+  screenshotPath?: string;
+}
 function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 800,
@@ -289,7 +299,7 @@ function createWindow() {
     return dir;
   };
 
-  ipcMain.handle('save-chat-history', async (_, historyItems: any[]) => {
+  ipcMain.handle('save-chat-history', async (_, historyItems: HistoryItem[]) => {
     try {
       const historyDir = getHistoryDir();
       const capturesDir = getCapturesDir();
@@ -331,9 +341,9 @@ function createWindow() {
       }
 
       const rawData = fs.readFileSync(chatsPath, 'utf-8');
-      const items = JSON.parse(rawData);
+      const items = JSON.parse(rawData) as HistoryItem[];
 
-      const loadedItems = items.map((item: any) => {
+      const loadedItems = items.map((item) => {
         if (item.screenshotPath) {
           const imgPath = path.join(capturesDir, item.screenshotPath);
           if (fs.existsSync(imgPath)) {

@@ -1,0 +1,26 @@
+[
+  {
+    "query": "Grill me on this launch plan and keep drilling into dependencies one question at a time.",
+    "should_trigger": true
+  },
+  {
+    "query": "Pressure-test my architecture proposal through a relentless interview; recommend an answer with every question.",
+    "should_trigger": true
+  },
+  {
+    "query": "I think this data-retention plan is ready. Interview me until every branch and assumption is resolved.",
+    "should_trigger": true
+  },
+  {
+    "query": "Review this architecture and give me a concise written list of the five largest risks.",
+    "should_trigger": false
+  },
+  {
+    "query": "Implement the agreed password-reset endpoint now; the design decisions are already final.",
+    "should_trigger": false
+  },
+  {
+    "query": "Create a visual decision tree from these already-resolved product requirements.",
+    "should_trigger": false
+  }
+]

@@ -367,7 +367,7 @@ function App() {
   };
 
   // Helper to obtain screenshot base64 data depending on state
-  const getScreenContext = async (): Promise<string | null> => {
+  const getScreenContext = useCallback(async (): Promise<string | null> => {
     if (capturedScreenshot) {
       return capturedScreenshot.split(',')[1];
     }
@@ -382,7 +382,7 @@ function App() {
       }
     }
     return null;
-  };
+  }, [autoAttachScreenshot, capturedScreenshot]);
 
   // --- REGION CIRCLING & CROP HANDLERS ---
   const startRegionSelection = useCallback(() => {
@@ -830,11 +830,11 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
     if (isListening) {
       // Stop Web Speech API if active
       if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch (_) { /* ignore */ }
+        try { recognitionRef.current.stop(); } catch { /* ignore */ }
       }
       // Stop native MediaRecorder stream if active
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        try { mediaRecorderRef.current.stop(); } catch (_) { /* ignore */ }
+        try { mediaRecorderRef.current.stop(); } catch { /* ignore */ }
       }
       setIsListening(false);
       setClickyStatus('Idle');

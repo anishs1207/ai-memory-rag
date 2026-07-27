@@ -16,8 +16,12 @@ export interface ButtonProps
   size?: "default" | "sm" | "lg" | "icon" | "xs";
 }
 
+type ElectronDragStyle = React.CSSProperties & {
+  WebkitAppRegion?: "drag" | "no-drag";
+};
+
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "default", size = "default", ...props }, ref) => {
+  ({ className, variant = "default", size = "default", style, ...props }, ref) => {
     const baseStyles =
       "inline-flex items-center justify-center whitespace-nowrap rounded-xl text-xs font-semibold ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-95";
 
@@ -50,10 +54,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     return (
       <button
-        style={{ WebkitAppRegion: "no-drag", ...props.style }}
+        {...props}
+        style={{ WebkitAppRegion: "no-drag", ...style } as ElectronDragStyle}
         className={cn(baseStyles, variants[variant], sizes[size], className)}
         ref={ref}
-        {...props}
       />
     );
   }
