@@ -16,7 +16,7 @@ export const documentQueue = new Queue("document-indexing", {
       type: "exponential",
       delay: 5000,
     },
-    removeOnComplete: true, // Clean up completed jobs
-    removeOnFail: false,   // Keep failed jobs for status checking
+    removeOnComplete: true,
+    removeOnFail: false, 
   },
 });

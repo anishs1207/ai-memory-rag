@@ -5,9 +5,9 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
 export default [
-  // Ignore compiler output directories
+  // Ignore compiler and build output directories to prevent ESLint from linting bundled files
   {
-    ignores: ['dist-electron/**', 'dist-react/**'],
+    ignores: ['dist/**', 'dist-electron/**', 'dist-react/**', 'release/**', 'out/**'],
   },
   // Use recommended configurations
   js.configs.recommended,

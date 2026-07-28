@@ -8,15 +8,15 @@ import { useState, useEffect } from "react"
 import axios from "axios"
 import ChatSidebar from "@/components/chat/ChatSidebar";
 import ChatContent from "@/components/chat/ChatContent";
-import { useAppDispatch, useAppSelector } from "@/lib/redux/hooks";
+import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import {
     setConversations,
     setActiveId,
     addConversation,
     deleteConversation,
     updateConversation as reduxUpdateConversation,
-    Conversation
-} from "@/lib/redux/chatSlice";
+} from "@/redux/chatSlice";
+import { Conversation } from "@/types";
 
 const SERVER_URL = "http://localhost:3001";
 

@@ -16,11 +16,6 @@ if (!fs.existsSync(databaseFilePath)) {
   fs.writeFileSync(databaseFilePath, JSON.stringify([], null, 2));
 }
 
-/**
- * Endpoint to process an uploaded document (PDF or image).
- * Uses Gemini 2.5 Flash multimodal capabilities to perform OCR, field extraction, 
- * and bounding box mapping in one single request.
- */
 export const processDocument = async (req: Request, res: Response) => {
   // Rule 3: Log each major step
   console.log("[LOG] processDocument controller invoked");
@@ -184,10 +179,6 @@ export const processDocument = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * Endpoint to save verified document details from human review.
- * Persists data to a local JSON database file.
- */
 export const saveExtractedData = async (req: Request, res: Response) => {
   // Rule 3: Log each major step
   console.log("[LOG] saveExtractedData controller invoked");

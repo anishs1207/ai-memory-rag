@@ -87,6 +87,25 @@ services:
     networks:
       - inqora-network
 
+  # RAG Pipeline Microservice
+  rag-pipeline:
+    build:
+      context: ./apps/rag-pipeline
+      dockerfile: Dockerfile
+    container_name: inqora-rag-pipeline
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://user:password@db:5432/agentic_db?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    depends_on:
+      - db
+      - redis
+    networks:
+      - inqora-network
+
 networks:
   inqora-network:
     driver: bridge

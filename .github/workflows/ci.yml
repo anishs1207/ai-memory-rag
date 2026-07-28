@@ -22,8 +22,10 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
+        env:
+          npm_config_force: "true"
         run: |
-          npm ci
+          npm ci --force || npm install --force
           npm install --no-save @tailwindcss/oxide-linux-x64-gnu
 
       - name: Build monorepo

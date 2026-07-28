@@ -19,19 +19,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
     Users,
-    Vote,
     ShieldAlert,
     History,
     Terminal,
     RefreshCw,
-    TrendingUp,
     AlertCircle,
     Cpu,
     Zap,
     Activity,
-    LayoutDashboard,
     Settings,
-    Shield,
     MessageSquare,
 } from "lucide-react";
 import { Loader } from "@/components/prompt-kit/loader";

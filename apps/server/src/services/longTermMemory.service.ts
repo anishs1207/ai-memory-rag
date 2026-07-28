@@ -1,9 +1,3 @@
-// ════════════════════════════════════════════════════════════════════════════
-// LONG-TERM MEMORY SERVICE
-// Strategy: Pinecone vector store + semantic search + importance scoring
-// Inspired by: HippoRAG, MemoryBank, A-MEM
-// ════════════════════════════════════════════════════════════════════════════
-
 import { randomUUID } from "crypto";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { embedText } from "../lib/embedding.js";
@@ -12,10 +6,7 @@ import type {
   SemanticSearchResult,
 } from "../types/memory.types.js";
 
-const INDEX_NAME = "memory"; // Separate Pinecone index for memory
-const DOCUMENTS_INDEX = "documents"; // Existing doc index
-
-// ─── Pinecone Singleton ───────────────────────────────────────────────────────
+const INDEX_NAME = "memory"; 
 
 let _pinecone: Pinecone | null = null;
 function getPinecone(): Pinecone {
@@ -25,30 +16,10 @@ function getPinecone(): Pinecone {
   return _pinecone;
 }
 
-// ─── Namespace Helper ─────────────────────────────────────────────────────────
-
 function userNamespace(userId: string, agentId?: string): string {
   return agentId ? `user_${userId}_agent_${agentId}` : `user_${userId}`;
 }
 
-// ─── Memory Decay ─────────────────────────────────────────────────────────────
-
-/**
- * Confidence decays with time (logarithmic decay).
- * Recent memories are stronger. Older ones fade unless accessed.
- */
-function computeCurrentConfidence(entry: LongTermMemoryEntry): number {
-  const ageMs = Date.now() - entry.lastAccessed;
-  const ageDays = ageMs / (1000 * 60 * 60 * 24);
-  const decayFactor = 1 / (1 + Math.log1p(ageDays / 7)); // halves every ~7 days
-  return Math.max(0.1, entry.confidence * decayFactor);
-}
-
-// ─── Public API ───────────────────────────────────────────────────────────────
-
-/**
- * Store a memory into long-term vector store.
- */
 export async function storeLongTermMemory(params: {
   userId: string;
   agentId?: string;

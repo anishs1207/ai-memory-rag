@@ -45,7 +45,6 @@ app.listen(PORT, () => {
   startSmolLMServer();
 });
 
-// Clean up child process on exit signal
 process.on("SIGINT", () => {
   console.log("[LOG] SIGINT received. Shutting down...");
   stopSmolLMServer();

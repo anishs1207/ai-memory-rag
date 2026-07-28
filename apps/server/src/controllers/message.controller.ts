@@ -9,15 +9,22 @@ import { randomUUID } from "crypto";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { embedText } from "@/lib/embedding.js";
 import LandingAIADE from "landingai-ade";
+import { documentQueue } from "@/lib/queue.js";
 
 interface EmbeddingContext {
   name: string;
   description: string;
 }
 
-// also use of tersac for adding files (context added for it)
-// add document ocr for it + make it work here:
-//@ test should work here but
+type RAGResult = {
+  answer: string;
+  sources: {
+    fileName: string;
+    chunkIndex: number;
+    score?: number;
+  }[];
+};
+
 const ChatLegal = async (req: Request, res: Response) => {
   try {
     const schema = z.object({
@@ -162,10 +169,6 @@ const ChatGeneral = async (req: Request, res: Response) => {
   }
 }
 
-// refer: https://app.pinecone.io/organizations/-OkIhbKdrSTCm9S_ivLE/projects/8d67056d-52d7-414d-b0c6-5a8d155d0840/keys
-// Lazy singleton: instantiated on first use so dotenv has already run
-import { documentQueue } from "@/lib/queue.js";
-
 export let _pinecone: Pinecone | null = null;
 export function getPinecone(): Pinecone {
   if (!_pinecone) {
@@ -263,21 +266,6 @@ async function getUploadStatus(req: Request, res: Response) {
   }
 }
 
-
-type RAGResult = {
-  answer: string;
-  sources: {
-    fileName: string;
-    chunkIndex: number;
-    score?: number;
-  }[];
-};
-
-// query a file (based on its name) & query rag on it
-// uploaded a file and use varipus rag techniques based on it
-// or combine with to have a toggle for leagl mode or not & add here
-// make rag work here and also allow tool to be called here
-// apply rag on it (b)
 const queryMessageFromFile = async (
   req: Request,
   res: Response
@@ -291,11 +279,7 @@ const queryMessageFromFile = async (
       llm: z.string().optional(),
     });
     const { fileName, prompt, topK, legalMode, llm } = schema.parse(req.body);
-
-    // 1️⃣ Embed query
     const queryEmbedding = await embedText(prompt);
-
-    // 2️⃣ Query Pinecone with file filter
     const index = getPinecone().index(INDEX_NAME);
 
     const queryResponse = await index.query({
@@ -317,14 +301,12 @@ const queryMessageFromFile = async (
       });
     }
 
-    // 3️⃣ Build context
     const context = queryResponse.matches
       .map((match, i) => {
         return `Chunk ${i + 1}:\n${match.metadata?.text ?? ""}`;
       })
       .join("\n\n");
 
-    // 4️⃣ System prompt
     const systemPrompt = legalMode
       ? `You are a legal assistant. Answer strictly using the provided document context.
         If the answer is not present, say "The document does not contain this information."`
@@ -342,11 +324,9 @@ const queryMessageFromFile = async (
         ANSWER:
 `;
 
-    // 5️⃣ Call Gemini
     const aiResponse = await geminiClient(finalPrompt, llm);
     const answer = getText(aiResponse);
 
-    // 6️⃣ Response
     const result: RAGResult = {
       answer,
       //@ts-expect-error
@@ -376,137 +356,9 @@ const queryMessageFromFile = async (
   }
 };
 
-// const client = new LandingAIADE({
-//   apikey: process.env.VISION_AGENT_API_KEY
-// });
-
-// 3 stages (parse) => Document → Parse → Split → Extract → Structured data
-// const parseDocument = async(req: Request, res: Response) => {
-//   const {filePath, type} = req.body;
-
-//   // type => use of terrasct and ade and paddleOCR here
-
-//   if (!filePath) {
-//     return res.status(400).json({
-//       success: false,
-//       error: "filePath is required",
-//     });
-//   }
-
-//   const response = await client.parse({
-//     // file path can be local file or remote
-//     document: fs.createReadStream(filePath),
-//     model: "dpt-2-latest"
-//  });
-
-
-
-// // her: https://docs.landing.ai/ade/ade-typescript
-// // Parse a remote file
-// const response2 = await client.parse({
-//   // for remote file path url taken here
-//   document: await fetch("https://example.com/document.pdf"),
-//   model: "dpt-2-latest",
-//   split: "page",
-// });
-
-
-// console.log(response.chunks);
-
-// // Save Markdown output (useful if you plan to run extract on the Markdown)
-// // https://docs.landing.ai/api-reference/tools/ade-split (the API docs here)
-// fs.writeFileSync("output.md", response.markdown, "utf-8");
-
-
-// console.log(response2.chunks);
-
-
-// // Save Markdown output (useful if you plan to run extract on the Markdown)
-// fs.writeFileSync("output2.md", response.markdown, "utf-8");
-
-
-
-
-//   return res.status(200).json({
-//     success: true,
-//     data: response,
-//   });
-// }
-
-// const parseManyDocuments = async(req: Request, res: Response) => {
-//   try {
-//     const job = await client.parseJobs.create({
-//   document: fs.createReadStream("/path/to/file/document"),
-//   model: "dpt-2-latest"
-// });
-
-// const jobId = job.job_id;
-// console.log(`Job ${jobId} created.`);
-
-// // Step 2: Get the parsing results
-// while (true) {
-//   const response = await client.parseJobs.get(jobId);
-//   if (response.status === "completed") {
-//     console.log(`Job ${jobId} completed.`);
-//     break;
-//   }
-//   console.log(`Job ${jobId}: ${response.status} (${(response.progress * 100).toFixed(0)}% complete)`);
-//   await new Promise(resolve => setTimeout(resolve, 5000));
-// }
-
-// // Step 3: Access the parsed data
-// const response3 = await client.parseJobs.get(jobId);
-// //@ts-expect-error
-// console.log("Global Markdown:", response3.data.markdown.substring(0, 200) + "...");
-// //@ts-expect-error
-// console.log(`Number of chunks: ${response3.data.chunks.length}`);
-
-// //@ts-expect-error
-// // Save Markdown output (useful if you plan to run extract on the Markdown)
-// fs.writeFileSync("output.md", response3.data.markdown, "utf-8");
-
-// // List all jobs
-// const response = await client.parseJobs.list();
-// for (const job of response.jobs) {
-//   console.log(`Job ${job.job_id}: ${job.status}`);
-// }
-
-// // works with parse presponse dtaa;
-// //@ts-expect-error
-// for (const chunk of response.chunks) {
-//   if (chunk.type === 'text') {
-//     console.log(`Chunk ${chunk.id}: ${chunk.markdown}`);
-//   }
-// }
-
-// // Filter chunks by page:
-// //@ts-expect-error
-// const page0Chunks = response.chunks.filter(chunk => chunk.grounding.page === 0);
-// console.log(page0Chunks);
-// // Get chunk locations:
-// //@ts-expect-error
-// for (const chunk of response.chunks) {
-//   const box = chunk.grounding.box;
-//   console.log(`Chunk at page ${chunk.grounding.page}: (${box.left}, ${box.top}, ${box.right}, ${box.bottom})`);
-// }
-// // Identify the chunk type for each chunk:
-// //@ts-expect-error
-// for (const [chunkId, grounding] of Object.entries(response.grounding)) {
-//   //@ts-expect-error
-//   console.log(`Chunk ${chunkId} has type: ${grounding.type}`);
-// }
-
-//   } catch(err) {
-
-//   }
-// }
-
 async function getFiles(req: Request, res: Response) {
   try {
     const index = getPinecone().index(INDEX_NAME);
-    // This is a hack because Pinecone doesn't support listing unique metadata values easily.
-    // We'll just return a message or implement a better tracker if needed.
-    // For now, let's assume we maintain a simple local list.
     const filesPath = path.join(process.cwd(), "uploads", "files.json");
     let files = [];
     if (fs.existsSync(filesPath)) {
@@ -519,218 +371,3 @@ async function getFiles(req: Request, res: Response) {
 }
 
 export { ChatFinance, ChatLegal, ChatGeneral, queryMessageFromFile, uploadFile, getFiles, getUploadStatus };
-
-// In Landing AI’s Agentic Document Extraction (Agent Document Extraction), Parse, Extract, and Split are three different stages/operations in the document understanding pipeline. They sound similar, but they solve different problems.
-
-// Here’s a clear mental model, then a side-by-side breakdown, and finally when to use what.
-
-// Big picture (one-line intuition)
-
-// Parse → Turn a document into machine-readable structure
-
-// Split → Break the document into smaller logical pieces
-
-// Extract → Pull specific information you care about
-
-// Think of it as:
-
-// Document → Parse → Split → Extract → Structured data
-
-// 1️⃣ Parse
-// What it does
-
-// Parse converts a raw document into a structured representation.
-
-// It understands:
-
-// Text
-
-// Layout (pages, blocks, tables)
-
-// Reading order
-
-// Bounding boxes
-
-// Basic document structure
-
-// Input
-
-// PDF
-
-// Scanned image
-
-// DOCX, etc.
-
-// Output
-
-// A structured document object (text + layout + metadata)
-
-// Example
-
-// PDF:
-
-// Invoice #123
-// Total: $4,500
-// Date: 12/01/2025
-
-
-// After Parse, the system knows:
-
-// This is text (not an image)
-
-// “Invoice #123” is a header
-
-// “Total: $4,500” is a key-value style line
-
-// Where each text block appears on the page
-
-// ⚠️ Parse does NOT decide what information is important.
-
-// 2️⃣ Split
-// What it does
-
-// Split divides a parsed document into smaller, logical chunks.
-
-// Useful for:
-
-// Multi-page documents
-
-// Multiple records in one file
-
-// Long contracts
-
-// Batch invoices
-
-// Common split strategies
-
-// By page
-
-// By section heading
-
-// By table row
-
-// By document boundary (multiple invoices in one PDF)
-
-// Example
-
-// One PDF contains:
-
-// Invoice A (pages 1–2)
-// Invoice B (pages 3–4)
-// Invoice C (pages 5–6)
-
-
-// After Split:
-
-// Chunk 1 → Invoice A
-// Chunk 2 → Invoice B
-// Chunk 3 → Invoice C
-
-
-// Each chunk can now be processed independently.
-
-// ⚠️ Split does not extract data — it just groups content.
-
-// 3️⃣ Extract
-// What it does
-
-// Extract pulls specific fields from parsed (and usually split) content.
-
-// This is where business meaning happens.
-
-// Input
-
-// Parsed document (or a split chunk)
-
-// Output
-
-// Structured fields (JSON)
-
-// Example extraction schema
-// {
-//   "invoice_number": "string",
-//   "invoice_date": "date",
-//   "total_amount": "number",
-//   "vendor_name": "string"
-// }
-
-// Result
-// {
-//   "invoice_number": "123",
-//   "invoice_date": "2025-01-12",
-//   "total_amount": 4500,
-//   "vendor_name": "ABC Pvt Ltd"
-// }
-
-
-// This step uses:
-
-// LLM reasoning
-
-// Layout awareness
-
-// Pattern recognition
-
-// Side-by-side comparison
-// Step	Purpose	Changes document size?	Adds meaning?
-// Parse	Make document readable & structured	❌ No	❌ No
-// Split	Break document into chunks	✅ Yes	❌ No
-// Extract	Pull required information	❌ No	✅ Yes
-// Typical real-world pipeline
-// Example: Invoice processing system
-
-// Parse
-
-// OCR + layout understanding
-
-// Split
-
-// Separate multiple invoices in one PDF
-
-// Extract
-
-// Invoice number
-
-// Vendor
-
-// Date
-
-// Total
-
-// Line items
-
-// When to use what (quick rules)
-
-// ✅ Always use Parse → it’s the foundation
-
-// ✅ Use Split if:
-
-// Document is long
-
-// Multiple records exist
-
-// You want better accuracy / parallel processing
-
-// ✅ Use Extract when:
-
-// You need structured output for databases / APIs
-
-// One-sentence analogy
-
-// Parse = Reading the book
-
-// Split = Bookmarking chapters
-
-// Extract = Writing notes with key facts
-
-// If you want, I can:
-
-// Map this to Landing AI UI steps
-
-// Compare it with Azure Form Recognizer / Google DocAI
-
-// Show a real JSON pipeline example
-
-// Explain how agents decide when to split automatically
-
-// Just tell me 👍

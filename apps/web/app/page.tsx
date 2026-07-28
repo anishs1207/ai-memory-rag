@@ -19,14 +19,11 @@ import {
   ExternalLink,
   Layers,
   Activity,
-  MapPin,
-  Lock,
   Code
 } from "lucide-react";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { Button } from "@/components/ui/button";
 
-// Code Snippets for Developer tab
 const CODE_SNIPPETS = {
   initialization: `import { InqoraMemory } from "@inqora/sdk";
 
@@ -59,7 +56,6 @@ console.log(context.sources);
 };
 
 export default function Page() {
-  // Simulator State
   const [queryInput, setQueryInput] = useState(
     "What project is Anish building, and does he use TypeScript?"
   );
@@ -68,7 +64,6 @@ export default function Page() {
   const [activeCodeTab, setActiveCodeTab] = useState<"initialization" | "ingestion" | "retrieval">("initialization");
   const [copiedSnippet, setCopiedSnippet] = useState(false);
 
-  // Auto-scroll simulation logs
   useEffect(() => {
     if (simulationState === "idle") {
       setLogs([]);

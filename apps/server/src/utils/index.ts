@@ -5,10 +5,6 @@ import {
 import { smollmClient } from "./smollm.js";
 
 // Rule 2: Add comments explaining important logic
-/**
- * Routes content generation prompt to the selected LLM provider.
- * Falls back to Google Gemini if no provider or 'gemini' is specified.
- */
 export async function geminiClient(prompt: string, llm?: string) {
     if (llm === "smollm") {
         // Rule 3: Log each major step
@@ -88,8 +84,6 @@ export function parseResult(result: any): any {
   } catch {
     const jsonMatch = responseText.match(/(\[.*\]|\{.*\})/s);
     if (!jsonMatch) {
-        // If not JSON but we expected it, maybe just return the text as a fallback if suitable, 
-        // but parseResult is usually used when JSON is expected.
         return { text: responseText }; 
     }
 

@@ -1,9 +1,3 @@
-// ════════════════════════════════════════════════════════════════════════════
-// SHORT-TERM MEMORY SERVICE
-// Strategy: Sliding Window (last N messages) + Overflow Summarisation
-// Inspired by: MemGPT's working memory tier
-// ════════════════════════════════════════════════════════════════════════════
-
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
@@ -14,10 +8,8 @@ import type {
 import { geminiClient, getText } from "../utils/index.js";
 
 const STORAGE_DIR = path.join(process.cwd(), "memory-store", "short-term");
-const MAX_WINDOW_SIZE = 20; // default rolling window
-const SUMMARY_TRIGGER = 25; // summarise when messages exceed this
-
-// ─── Persistence Helpers ─────────────────────────────────────────────────────
+const MAX_WINDOW_SIZE = 20; 
+const SUMMARY_TRIGGER = 25;
 
 function ensureDir() {
   if (!fs.existsSync(STORAGE_DIR)) {

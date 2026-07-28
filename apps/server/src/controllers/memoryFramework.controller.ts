@@ -1,8 +1,3 @@
-// ════════════════════════════════════════════════════════════════════════════
-// MEMORY FRAMEWORK CONTROLLER
-// REST API handlers for the memory framework
-// ════════════════════════════════════════════════════════════════════════════
-
 import type { Request, Response } from "express";
 import { z } from "zod";
 import {

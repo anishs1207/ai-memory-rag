@@ -7,7 +7,6 @@ import {
     DialogDescription,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,9 +30,6 @@ import {
 import {
     BarChart,
     Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
     Tooltip as RechartsTooltip,
     ResponsiveContainer,
     PieChart,
@@ -107,7 +103,6 @@ export function BudgetModal({
     const totalSpent = budgetData.expenses.reduce((acc, curr) => acc + curr.amount, 0);
     const remainingBudget = budgetData.totalBudget - totalSpent;
 
-    // Dummy data for charts
     const weeklyData = [
         { name: "Mon", amount: 45 },
         { name: "Tue", amount: 52 },

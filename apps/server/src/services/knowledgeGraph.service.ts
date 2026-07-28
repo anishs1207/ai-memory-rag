@@ -1,17 +1,5 @@
-// ════════════════════════════════════════════════════════════════════════════
-// KNOWLEDGE GRAPH SERVICE
-// Strategy: JSON property graph stored in SQLite-backed JSON files
-// Inspired by: GraphRAG (Microsoft), MemoryOS, Zep's memory graphs
-// 
-// Memory Graph stores:
-//   - Entities (Person, Concept, Skill, Goal, Project, Preference…)
-//   - Relationships between them (LIKES, WORKS_ON, HAS_SKILL…)
-//   - Temporal metadata (confidence, last_seen, occurrences)
-// ════════════════════════════════════════════════════════════════════════════
-
 import fs from "fs";
 import path from "path";
-import { randomUUID } from "crypto";
 import type {
   KGNode,
   KGEdge,
@@ -22,8 +10,6 @@ import type {
 } from "../types/memory.types.js";
 
 const STORAGE_DIR = path.join(process.cwd(), "memory-store", "knowledge-graph");
-
-// ─── Persistence ─────────────────────────────────────────────────────────────
 
 function ensureDir() {
   if (!fs.existsSync(STORAGE_DIR)) {
@@ -88,12 +74,6 @@ function makeEdgeId(fromId: string, toId: string, type: KGEdgeType): string {
   return `${fromId}--${type}-->${toId}`;
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
-
-/**
- * Upsert a node into the knowledge graph.
- * If the node already exists, merge properties and boost occurrences.
- */
 export function upsertNode(
   userId: string,
   params: {

@@ -27,11 +27,9 @@
   ],
   "dependencies": {
     "@langchain/google-genai": "^2.1.31",
-    "@next/swc-win32-x64-msvc": "^16.2.10",
     "@types/express": "^5.0.6",
     "express": "^5.2.1",
     "langchain": "^1.4.5",
-    "lightningcss-win32-x64-msvc": "^1.32.0",
     "zod": "^4.4.3"
   }
 }

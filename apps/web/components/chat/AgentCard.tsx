@@ -23,7 +23,6 @@ import { Textarea } from "@/components/ui/textarea";
 import {
     ArrowUp,
     Bot,
-    User,
     Upload,
     FileText,
     Hash,
@@ -64,7 +63,7 @@ const MODEL_CONFIGS: Record<ModelType, { label: string; icon: any; color: string
     finance: { label: "Finance", icon: Hash, color: "text-green-500" },
     legal: { label: "Legal", icon: FileText, color: "text-purple-500" },
     pdf: { label: "PDF Chat", icon: FileText, color: "text-orange-500" },
-    budget: { label: "Budget", icon: Hash, color: "text-pink-500" }, // Reusing Hash or Import icons if needed
+    budget: { label: "Budget", icon: Hash, color: "text-pink-500" },
     research: { label: "Research", icon: FileText, color: "text-indigo-500" },
 };
 

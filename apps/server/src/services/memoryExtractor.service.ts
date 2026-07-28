@@ -1,9 +1,3 @@
-// ════════════════════════════════════════════════════════════════════════════
-// MEMORY EXTRACTOR SERVICE
-// Role: Parse conversations with LLM → extract entities, facts, relationships
-// Inspired by: Zep's temporal knowledge graph, MemoryBank
-// ════════════════════════════════════════════════════════════════════════════
-
 import { geminiClient, getText } from "../utils/index.js";
 import type {
   ExtractedEntities,
@@ -11,8 +5,6 @@ import type {
   KGEdgeType,
   ShortTermMessage,
 } from "../types/memory.types.js";
-
-// ─── Schema for Extraction ────────────────────────────────────────────────────
 
 const EXTRACTION_PROMPT = (conversation: string) => `
 You are a memory extraction agent for an AI assistant. Your task is to extract structured knowledge from the given conversation.
@@ -69,10 +61,6 @@ Rules:
 `;
 
 // ─── Extraction Function ──────────────────────────────────────────────────────
-
-/**
- * Extract structured entities, relations, and facts from a conversation.
- */
 export async function extractMemoryFromConversation(
   messages: ShortTermMessage[],
   userId?: string
@@ -151,10 +139,6 @@ export async function extractMemoryFromConversation(
   }
 }
 
-/**
- * Extract facts from a single message (lightweight, no full LLM call).
- * Used for quick metadata tagging.
- */
 export async function extractFromSingleMessage(
   content: string
 ): Promise<{ summary: string; tags: string[]; importance: number }> {

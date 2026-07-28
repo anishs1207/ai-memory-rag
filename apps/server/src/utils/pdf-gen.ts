@@ -2,9 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
 
-/**
- * Generates a professional PDF from LaTeX content using a cloud compiler API.
- */
 export async function generateResearchPDF(topic: string, content: string, fileName: string): Promise<string> {
     const uploadsDir = path.join(process.cwd(), 'uploads');
     if (!fs.existsSync(uploadsDir)) {

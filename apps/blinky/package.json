@@ -2,6 +2,8 @@
   "name": "desktop-app",
   "private": true,
   "version": "0.0.0",
+  "description": "Blinky AI Desktop Assistant",
+  "author": "Anish",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -13,7 +15,7 @@
     "preview": "vite preview",
     "transpile:electron": "tsc --project src/electron/tsconfig.json",
     "dist:mac": "npm run transpile:electron && npm run build && electron-builder --mac --arm64",
-    "dist:win": "npm run transpile:electron && npm run build && electron-builder --win --x64",
+    "dist:win": "npm run transpile:electron && npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --x64 -c.win.certificateFile=null -c.win.cscLink=null",
     "dist:linux": "npm run transpile:electron && npm run build && electron-builder --linux --x64"
   },
   "dependencies": {
@@ -35,7 +37,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "cross-env": "^7.0.3",
-    "electron": "^34.1.1",
+    "electron": "34.1.1",
     "electron-builder": "^25.1.8",
     "eslint": "^9.18.0",
     "eslint-plugin-react-hooks": "^5.1.0",

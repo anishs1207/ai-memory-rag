@@ -1,5 +1,6 @@
 {
     "appId": "com.anish.electron-project",
+    "electronVersion": "34.1.1",
     "files": [
         "dist-electron",
         "dist-react"
@@ -18,7 +19,14 @@
     "win": {
         "target": [
             "portable",
-            "msi"
-        ]
+            "zip"
+        ],
+        "cscLink": null,
+        "sign": null
+    },
+    "nsis": {
+        "oneClick": true,
+        "perMachine": false,
+        "allowToChangeInstallationDirectory": true
     }
 }

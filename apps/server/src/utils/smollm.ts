@@ -8,10 +8,6 @@ const SMOL_LM_SERVER_PORT = 5002;
 const SMOL_LM_SERVER_URL = `http://127.0.0.1:${SMOL_LM_SERVER_PORT}/generate`;
 
 // Rule 2: Add comments explaining important logic
-/**
- * Spawns the local Python HTTP microservice using the virtual environment's interpreter.
- * It configures thread-limiting environment variables for OpenBLAS on Windows.
- */
 export function startSmolLMServer(): void {
     // Rule 3: Log each major step
     console.log("[LOG] Initializing local SmolLM server startup sequence...");

@@ -1,9 +1,9 @@
 import { ChromaClient } from "chromadb";
 
+// run it: chroma run --host localhost --port 8000
 export const chroma = new ChromaClient({
-  path: "http://localhost:8000", // Chroma server URL
+  path: "http://localhost:8000", 
 });
 
-export const collectionName = "uploaded-files"; // default collection for uploaded files
+export const collectionName = "uploaded-files";
 
-// run it: chroma run --host localhost --port 8000

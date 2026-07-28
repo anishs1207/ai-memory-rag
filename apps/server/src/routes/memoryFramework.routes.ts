@@ -1,8 +1,3 @@
-// ════════════════════════════════════════════════════════════════════════════
-// MEMORY FRAMEWORK ROUTES
-// All routes under /api/v1/memory/*
-// ════════════════════════════════════════════════════════════════════════════
-
 import { Router } from "express";
 import { aiEndpointsLimiter } from "../middleware/rateLimit.middleware.js";
 import {

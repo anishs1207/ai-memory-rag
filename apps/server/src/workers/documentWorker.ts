@@ -13,7 +13,6 @@ export const documentWorker = new Worker(
     console.log(`[DocumentWorker] Processing job ${job.id} for file: ${fileName}`);
 
     try {
-      // 1. Read and parse file
       const content = await readFileContent(filePath);
       const chunks = chunkText(content);
       const totalChunks = chunks.length;
@@ -22,7 +21,6 @@ export const documentWorker = new Worker(
 
       const index = getPinecone().index(INDEX_NAME);
 
-      // 2. Process chunks and update job progress
       for (let i = 0; i < totalChunks; i++) {
         const textToEmbed = chunks[i] || "";
         const vector = await embedText(textToEmbed);
@@ -39,7 +37,6 @@ export const documentWorker = new Worker(
           },
         ]);
 
-        // Report progress to BullMQ
         const progressPercentage = Math.round(((i + 1) / totalChunks) * 100);
         await job.updateProgress({
           processed: i + 1,
@@ -48,12 +45,10 @@ export const documentWorker = new Worker(
         });
       }
 
-      // 3. Clean up the temporary file
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
 
-      // 4. Update the uploads list tracker
       const uploadsDir = path.join(process.cwd(), "uploads");
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
@@ -72,7 +67,6 @@ export const documentWorker = new Worker(
       return { success: true, fileName };
     } catch (err: any) {
       console.error(`[DocumentWorker] Error in job ${job.id}:`, err);
-      // Clean up the temp file on error too, if it exists
       if (fs.existsSync(filePath)) {
         try {
           fs.unlinkSync(filePath);

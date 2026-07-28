@@ -3,7 +3,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "@/components/theme/theme-provider";
-import StoreProvider from "@/lib/redux/provider";
+import StoreProvider from "@/redux/provider";
 
 const geist = Geist({ subsets: ["latin"] });
 

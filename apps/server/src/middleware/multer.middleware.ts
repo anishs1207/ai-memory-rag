@@ -19,7 +19,6 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter: multer.Options["fileFilter"] = (_req, file, callback) => {
-  // Allow PDF and common image formats only for document parsing
   const allowedExtensions = [".pdf", ".png", ".jpg", ".jpeg"];
 
   const fileExtension = path.extname(file.originalname).toLowerCase();
@@ -34,6 +33,6 @@ export const uploadMiddleware = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
+    fileSize: 10 * 1024 * 1024,
   },
 }).single("file");

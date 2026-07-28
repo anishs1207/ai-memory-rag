@@ -1,14 +1,6 @@
-// ════════════════════════════════════════════════════════════════════════════
-// MEMORY ORCHESTRATOR SERVICE
-// Role: Unified memory intelligence layer — decides what to retrieve & store
-// Inspired by: CoALA (Cognitive Architecture for Language Agents),
-//              MemGPT main_context / archival_memory split
-// ════════════════════════════════════════════════════════════════════════════
-
 import {
   getShortTermContext,
   addMessage,
-  createSession,
 } from "./shortTermMemory.service.js";
 import {
   storeLongTermMemory,
@@ -31,12 +23,6 @@ import type {
   ShortTermMessage,
 } from "../types/memory.types.js";
 
-// ─── Memory Recall ────────────────────────────────────────────────────────────
-
-/**
- * Recall all relevant memory for a given query.
- * This is the main function called before generating any LLM response.
- */
 export async function recallMemory(
   req: MemoryRecallRequest
 ): Promise<MemoryContext> {
@@ -120,11 +106,6 @@ export async function recallMemory(
 }
 
 // ─── Memory Store (after conversation turn) ───────────────────────────────────
-
-/**
- * After a conversation turn, extract and store new memories.
- * This should be called async (fire and forget) after the response is sent.
- */
 export async function consolidateMemory(params: {
   userId: string;
   sessionId: string;
@@ -212,11 +193,6 @@ export async function consolidateMemory(params: {
 }
 
 // ─── Memory-Augmented Prompt Builder ─────────────────────────────────────────
-
-/**
- * Build a full system prompt augmented with memory context.
- * Used by any memory-aware agent/chat.
- */
 export function buildMemoryAugmentedPrompt(params: {
   baseSystemPrompt: string;
   memoryContext: MemoryContext;
@@ -240,13 +216,6 @@ ${memoryContext.composedContext}
 }
 
 // ─── Convenience: Chat with Memory ───────────────────────────────────────────
-
-/**
- * Full memory lifecycle for one chat turn:
- * 1. Recall relevant memory
- * 2. Add user message to short-term
- * 3. (After response) consolidate
- */
 export async function memoryAwareChatSetup(params: {
   userId: string;
   sessionId: string;
@@ -274,10 +243,6 @@ export async function memoryAwareChatSetup(params: {
   return memoryCtx;
 }
 
-/**
- * Call after the assistant response is ready.
- * Stores assistant message + triggers consolidation.
- */
 export async function memoryAwareChatFinalize(params: {
   userId: string;
   sessionId: string;

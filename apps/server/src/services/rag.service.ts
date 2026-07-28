@@ -20,7 +20,6 @@ export class VectorStore {
 
   constructor(baseDir: string) {
     this.baseDir = path.resolve(baseDir);
-    // @@see laert:this.baseDir = path.resolve(process.cwd(), "../../legal-vetor-db");
     this.loadAllEmbeddings();
   }
 
@@ -435,16 +434,14 @@ export const runRAG = async (query: string, baseDir: string): Promise<EmbeddingC
   }));
 
   const lowerQuery = query.toLowerCase().trim();
-  if (!lowerQuery) return allContexts.slice(0, TOP_K); // return top-K if no query
+  if (!lowerQuery) return allContexts.slice(0, TOP_K);
 
   const queryWords = lowerQuery.split(/\s+/);
 
   const scored = allContexts
     .map((ctx) => {
       let score = 0;
-// +2 if query appears in name
       if (ctx.name.toLowerCase().includes(lowerQuery)) score += 2;
-      // +1 for each word match in description
       const descLower = ctx.description.toLowerCase();
       queryWords.forEach((word) => {
         if (descLower.includes(word)) score += 1;
@@ -455,13 +452,5 @@ export const runRAG = async (query: string, baseDir: string): Promise<EmbeddingC
     .filter((ctx) => ctx.score > 0)
     .sort((a, b) => b.score - a.score);
 
-    // Return top-K matches only
-
   return scored.slice(0, TOP_K);
 };
-
-// Self-test (not required but see it)
-// if (require.main === module) {
-//   const store = new VectorStore();
-//   console.log("✅ Example Embedding (full content):", store.embeddings[0]);
-// }

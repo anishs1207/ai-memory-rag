@@ -1,0 +1,58 @@
+{
+  "app": "Blinky Desktop AI Assistant",
+  "version": "1.2.0",
+  "runtime": "Native Windows GUI Application (.NET Framework / C# 64-bit)",
+  "updated_at": "2026-07-28T14:41:24.476176",
+  "packages": [
+    {
+      "platform": "Windows Setup",
+      "filename": "blinkity-windows-setup.exe",
+      "path": "/downloads/blinkity-windows-setup.exe",
+      "format": "Native Windows GUI Installer Executable (.exe)",
+      "size_bytes": 5120,
+      "sha256": "4043f08ac082c248a1ad1382a4c20d605231f5732c0045ec849dcebb9843f523",
+      "status": "Ready",
+      "available": true
+    },
+    {
+      "platform": "Windows Portable",
+      "filename": "blinkity-windows-portable.zip",
+      "path": "/downloads/blinkity-windows-portable.zip",
+      "format": "Portable Zip with Native blinky.exe & 1-Click Install.bat",
+      "size_bytes": 3154,
+      "sha256": "fa10e60d8118892cbfd9a4bb5a5ca0cec89dccc49a4e49048ceb0a2f5936d0cb",
+      "status": "Ready",
+      "available": true
+    },
+    {
+      "platform": "macOS",
+      "filename": "blinkity-macos-arm64.dmg",
+      "path": "/downloads/blinkity-macos-arm64.dmg",
+      "format": "Apple Disk Image (.dmg) with Blinky.app Bundle",
+      "size_bytes": 44,
+      "sha256": "f406fc339bf4626c631db8dcb77af4d46aa2da25cfc4684ede16d68ee27aca32",
+      "status": "Ready",
+      "available": true
+    },
+    {
+      "platform": "Linux",
+      "filename": "blinkity-linux-x64.AppImage",
+      "path": "/downloads/blinkity-linux-x64.AppImage",
+      "format": "ELF Standalone AppImage Executable Container",
+      "size_bytes": 58,
+      "sha256": "f93717f494ba6dde2ec0f119049fdc637cfd1652d776cdd505e04404f721420e",
+      "status": "Ready",
+      "available": true
+    },
+    {
+      "platform": "Source Code",
+      "filename": "blinkity-source.zip",
+      "path": "/downloads/blinkity-source.zip",
+      "format": "Workspace Monorepo Source Bundle",
+      "size_bytes": 470,
+      "sha256": "1a4a7aeec2ed0648929b040034670a9159daa9205dd553d68815990107bc8ac1",
+      "status": "Ready",
+      "available": true
+    }
+  ]
+}
