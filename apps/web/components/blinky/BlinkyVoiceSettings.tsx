@@ -3,6 +3,9 @@
 import React from "react";
 import { Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 
+/**
+ * Interface properties for the BlinkyVoiceSettings component.
+ */
 export interface BlinkyVoiceSettingsProps {
   ttsEnabled: boolean;
   onToggleTts: () => void;
@@ -19,6 +22,9 @@ export interface BlinkyVoiceSettingsProps {
   onToggleListening: () => void;
 }
 
+/**
+ * Minimalist voice settings component.
+ */
 export const BlinkyVoiceSettings: React.FC<BlinkyVoiceSettingsProps> = ({
   ttsEnabled,
   onToggleTts,
@@ -28,79 +34,77 @@ export const BlinkyVoiceSettings: React.FC<BlinkyVoiceSettingsProps> = ({
   onChangeRate,
   voicePitch,
   onChangePitch,
-  voiceVolume,
-  onChangeVolume,
   voicesList,
   isListening,
   onToggleListening,
 }) => {
   return (
-    <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+    <div id="voice-controls" className="rounded-3xl border border-border/40 bg-card/30 p-6 backdrop-blur-2xl space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
           {ttsEnabled ? (
-            <Volume2 className="h-4 w-4 text-primary" />
+            <Volume2 className="h-3.5 w-3.5 text-foreground" />
           ) : (
-            <VolumeX className="h-4 w-4 text-muted-foreground" />
+            <VolumeX className="h-3.5 w-3.5 text-muted-foreground" />
           )}
-          Voice & Speech Engine
+          Speech Engine
         </h3>
 
         <div className="flex items-center gap-2">
           <button
             onClick={onToggleListening}
-            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
+            className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
               isListening
-                ? "bg-red-500 text-white animate-pulse"
-                : "bg-secondary text-secondary-foreground hover:bg-accent"
+                ? "bg-rose-500 text-white animate-pulse"
+                : "border border-border/40 bg-card/40 text-foreground hover:bg-accent"
             }`}
           >
             {isListening ? (
               <>
-                <Mic className="h-3.5 w-3.5" /> Listening...
+                <Mic className="h-3 w-3" /> Listening
               </>
             ) : (
               <>
-                <MicOff className="h-3.5 w-3.5" /> Mic Speech
+                <MicOff className="h-3 w-3 text-muted-foreground" /> Mic
               </>
             )}
           </button>
 
           <button
             onClick={onToggleTts}
-            className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
               ttsEnabled
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-secondary-foreground"
+                ? "bg-foreground text-background"
+                : "border border-border/40 bg-card/40 text-muted-foreground"
             }`}
           >
-            {ttsEnabled ? "TTS On" : "TTS Off"}
+            {ttsEnabled ? "TTS Active" : "Muted"}
           </button>
         </div>
       </div>
 
       {ttsEnabled && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 text-xs">
-          <div className="space-y-1 sm:col-span-2">
-            <label className="text-muted-foreground">Select Synthetic Voice</label>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 text-xs pt-1">
+          <div className="space-y-1.5 sm:col-span-2">
             <select
               value={selectedVoice}
               onChange={(e) => onSelectVoice(e.target.value)}
-              className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              aria-label="Voice Selection"
+              className="w-full rounded-2xl border border-border/40 bg-background/50 px-3 py-2 text-xs text-foreground focus:outline-none"
             >
               <option value="">System Default Voice</option>
-              {voicesList.map((v) => (
-                <option key={v.voiceURI} value={v.voiceURI}>
-                  {v.name} ({v.lang})
+              {voicesList.map((voice) => (
+                <option key={voice.voiceURI} value={voice.voiceURI}>
+                  {voice.name} ({voice.lang})
                 </option>
               ))}
             </select>
           </div>
 
           <div className="space-y-1">
-            <div className="flex justify-between text-muted-foreground">
+            <div className="flex justify-between text-muted-foreground text-[11px]">
               <span>Speech Rate</span>
-              <span>{voiceRate.toFixed(1)}x</span>
+              <span className="font-mono text-foreground">{voiceRate.toFixed(1)}x</span>
             </div>
             <input
               type="range"
@@ -109,14 +113,15 @@ export const BlinkyVoiceSettings: React.FC<BlinkyVoiceSettingsProps> = ({
               step="0.1"
               value={voiceRate}
               onChange={(e) => onChangeRate(parseFloat(e.target.value))}
-              className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+              aria-label="Speech Rate"
+              className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer accent-foreground"
             />
           </div>
 
           <div className="space-y-1">
-            <div className="flex justify-between text-muted-foreground">
+            <div className="flex justify-between text-muted-foreground text-[11px]">
               <span>Voice Pitch</span>
-              <span>{voicePitch.toFixed(1)}</span>
+              <span className="font-mono text-foreground">{voicePitch.toFixed(1)}</span>
             </div>
             <input
               type="range"
@@ -125,7 +130,8 @@ export const BlinkyVoiceSettings: React.FC<BlinkyVoiceSettingsProps> = ({
               step="0.1"
               value={voicePitch}
               onChange={(e) => onChangePitch(parseFloat(e.target.value))}
-              className="w-full h-1.5 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+              aria-label="Voice Pitch"
+              className="w-full h-1 bg-secondary rounded-lg appearance-none cursor-pointer accent-foreground"
             />
           </div>
         </div>
@@ -135,3 +141,5 @@ export const BlinkyVoiceSettings: React.FC<BlinkyVoiceSettingsProps> = ({
 };
 
 export default BlinkyVoiceSettings;
+
+

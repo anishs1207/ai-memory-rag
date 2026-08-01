@@ -4,6 +4,7 @@ import cors from "cors";
 import { generalLimiter } from "./middleware/rateLimit.middleware.js";
 import "@/workers/documentWorker.js";
 import { startSmolLMServer, stopSmolLMServer } from "./utils/smollm.js";
+import { orchestrator } from "@inqora/common";
 
 dotenv.config({
   path: "./.env",
@@ -32,16 +33,20 @@ import messageRouter from "./routes/message.routes.js";
 import panelRouter from "./routes/panel.routes.js";
 import memoryRouter from "./routes/memoryFramework.routes.js";
 import documentRouter from "./routes/document.routes.js";
+import workflowRouter from "./routes/workflow.routes.js";
 
 app.use("/api/v1/message", messageRouter);
 app.use("/api/v1/panel", panelRouter);
 app.use("/api/v1/memory", memoryRouter);
 app.use("/api/v1/document", documentRouter);
+app.use("/api/v1/workflow", workflowRouter);
+app.use("/", workflowRouter);
 
 app.listen(PORT, () => {
   console.log(`Server started at http://localhost:${PORT}`);
   // Rule 3: Log each major step
-  console.log("[LOG] Express server is listening. Initializing local model service...");
+  console.log("[LOG] Express server is listening. Initializing orchestrator & local model service...");
+  void orchestrator.start();
   startSmolLMServer();
 });
 

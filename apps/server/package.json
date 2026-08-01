@@ -17,6 +17,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@inqora/common": "*",
     "@google/genai": "^1.42.0",
     "@langchain/core": "^1.1.45",
     "@langchain/tavily": "^1.2.0",

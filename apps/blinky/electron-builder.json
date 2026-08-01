@@ -22,7 +22,7 @@
             "zip"
         ],
         "cscLink": null,
-        "sign": null
+        "sign": "scripts/skip-sign.cjs"
     },
     "nsis": {
         "oneClick": true,
