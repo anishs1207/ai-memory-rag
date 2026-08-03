@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -114,7 +114,7 @@
                             </div>
                             <div class="form-group">
                                 <label for="secret-val">Secret Value:</label>
-                                <input type="password" id="secret-val" placeholder="••••••••••••••••" required>
+                                <input type="password" id="secret-val" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" required>
                             </div>
                             <button type="submit" class="btn btn-secondary btn-block">INJECT SECRET</button>
                         </form>
@@ -142,7 +142,7 @@
                 <div class="panel card" style="flex: 2;">
                     <div class="panel-header">
                         <h2>Active Deployments</h2>
-                        <button class="btn btn-secondary btn-sm" onclick="refreshDeployments()">FORCE REFRESH</button>
+                        <div class="deployment-tools"><label class="search-field" for="deployment-search"><span aria-hidden="true">⌕</span><input id="deployment-search" type="search" placeholder="Filter deployments" autocomplete="off"></label><button class="btn btn-secondary btn-sm" onclick="refreshDeployments()">Refresh</button></div>
                     </div>
                     <div class="panel-body">
                         <div class="deployments-grid" id="deployments-container">
@@ -193,11 +193,11 @@
     </div>
 
     <!-- Agent Test Modal / Overlay Drawer -->
-    <div class="modal-overlay" id="test-modal">
+    <div class="modal-overlay" id="test-modal" role="dialog" aria-modal="true" aria-labelledby="test-modal-title">
         <div class="modal-card">
             <div class="modal-header">
-                <h2>Agent Test Runner // <span id="test-agent-name" class="accent-text">weather-agent</span></h2>
-                <button class="btn-close" onclick="closeTestRunner()">&times;</button>
+                <h2 id="test-modal-title">Agent Test Runner // <span id="test-agent-name" class="accent-text">weather-agent</span></h2>
+                <button class="btn-close" onclick="closeTestRunner()" aria-label="Close test runner">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="test-config-row">
@@ -319,6 +319,8 @@
             </div>
         </div>
     </div>
+
+    <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
 
     <!-- Application Javascript Logic -->
     <script src="app.js"></script>

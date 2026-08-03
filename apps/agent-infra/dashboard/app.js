@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    AGENTOS CLIENT MONITOR & CONTROLLER LOGIC
    Date: 2026-06-16
    ========================================================================== */
@@ -25,6 +25,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Fetch initial templates & logs
     fetchMarketplaceTemplates();
+
+    document.getElementById('deployment-search')?.addEventListener('input', (event) => {
+        const query = event.target.value.trim().toLowerCase();
+        renderDeploymentsFleet(cachedDeploymentsList.filter(agent =>
+            agent.name.toLowerCase().includes(query) ||
+            (agent.command || '').toLowerCase().includes(query)
+        ));
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeTestRunner();
+    });
     
     console.log("[AgentOS Console] Subsystem client controllers initialized successfully.");
 });
@@ -150,13 +162,13 @@ async function deployNewAgent(manifestPath) {
         const result = await response.json();
 
         if (response.ok) {
-            alert(`Deployment Triggered: ${result.message || 'Success'}`);
+            showToast(`Deployment Triggered: ${result.message || 'Success'}`);
             refreshDeployments();
         } else {
-            alert(`Deployment Failed: ${result.error || 'Server error'}`);
+            showToast(`Deployment Failed: ${result.error || 'Server error'}`);
         }
     } catch (error) {
-        alert(`Network error deploying agent: ${error.message}`);
+        showToast(`Network error deploying agent: ${error.message}`);
     } finally {
         deployButton.disabled = false;
         deployButton.textContent = previousLabel;
@@ -182,10 +194,10 @@ async function undeployAgent(agentName) {
             }
             refreshDeployments();
         } else {
-            alert(`Failed to undeploy agent: ${result.error || 'Server error'}`);
+            showToast(`Failed to undeploy agent: ${result.error || 'Server error'}`);
         }
     } catch (error) {
-        alert(`Network error undeploying: ${error.message}`);
+        showToast(`Network error undeploying: ${error.message}`);
     }
 }
 
@@ -202,10 +214,10 @@ async function scaleAgentReplicas(agentName, desiredReplicas) {
         if (response.ok) {
             refreshDeployments();
         } else {
-            alert(`Scaling Failed: ${result.error || 'Server error'}`);
+            showToast(`Scaling Failed: ${result.error || 'Server error'}`);
         }
     } catch (error) {
-        alert(`Network error adjusting replicas: ${error.message}`);
+        showToast(`Network error adjusting replicas: ${error.message}`);
     }
 }
 
@@ -220,12 +232,12 @@ async function injectRegistrySecret(namespace, key, value) {
         const result = await response.json();
 
         if (response.ok) {
-            alert(`Secret '${key}' successfully injected into namespace '${namespace}'.`);
+            showToast(`Secret '${key}' successfully injected into namespace '${namespace}'.`);
         } else {
-            alert(`Secrets injection failed: ${result.error || 'Server error'}`);
+            showToast(`Secrets injection failed: ${result.error || 'Server error'}`);
         }
     } catch (error) {
-        alert(`Network error configuring secret: ${error.message}`);
+        showToast(`Network error configuring secret: ${error.message}`);
     }
 }
 
@@ -254,12 +266,12 @@ async function installMarketplaceTemplate(templateName) {
         const result = await response.json();
 
         if (response.ok) {
-            alert(`Template ${templateName} registered successfully! Note: You can now deploy it from your workspace config path.`);
+            showToast(`Template ${templateName} registered successfully! Note: You can now deploy it from your workspace config path.`);
         } else {
-            alert(`Failed installing template: ${result.error || 'Server error'}`);
+            showToast(`Failed installing template: ${result.error || 'Server error'}`);
         }
     } catch (error) {
-        alert(`Network error during template install: ${error.message}`);
+        showToast(`Network error during template install: ${error.message}`);
     }
 }
 
@@ -883,4 +895,20 @@ function setStepState(stepName, state, description = '') {
             }
         }
     }
+}
+
+function showToast(message, type = 'info') {
+    const region = document.getElementById('toast-region');
+    if (!region) return;
+
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-' + type;
+    toast.textContent = message;
+    region.appendChild(toast);
+
+    requestAnimationFrame(() => toast.classList.add('visible'));
+    setTimeout(() => {
+        toast.classList.remove('visible');
+        setTimeout(() => toast.remove(), 200);
+    }, 3600);
 }
