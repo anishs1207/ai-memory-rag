@@ -60,3 +60,4 @@ terraform.rc
 
 # prompts
 prompts/
+global-prompts/

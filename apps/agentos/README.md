@@ -1,4 +1,4 @@
-# AgentOS Orchestrator Engine
+﻿# AgentOS Orchestrator Engine
 
 AgentOS is a production-grade, lightweight, Kubernetes-like orchestrator for AI agents written in Go. It manages agent lifecycles, handles dynamic host port allocation, reverse-proxies and load-balances incoming traffic, implements scale-to-zero autoscaling, tracks costs, manages node fleets, coordinates multi-agent workflow pipelines, and processes long-running agent tasks via an internal background job queue.
 
@@ -149,20 +149,44 @@ env:
 Compile and start the Go server from the `apps/agent-infra` directory:
 ```powershell
 # Compile Go binary
-go build -o ai-infra.exe
+go build -o agentos.exe
 
 # Start orchestrator
-.\ai-infra.exe
+.\agentos.exe run
 ```
 The gateway, proxy, and dashboard will boot and listen at `http://localhost:8080`.
 
 ### 2. Deploy an Agent
 Submit a deployment request pointing to an `agent.yaml` file path:
 ```bash
-curl.exe -X POST -H "Content-Type: application/json" -d '{"path": "./example/weather/agent.yaml"}' http://localhost:8080/api/deploy
+.\agentos.exe deploy .\example\weather\agent.yaml
 ```
 
 ---
+
+
+### CLI commands
+
+Keep agentos run open in one terminal and use the client commands from another:
+
+~~~powershell
+./agentos.exe status
+./agentos.exe agents
+./agentos.exe stats
+./agentos.exe stats weather-agent
+./agentos.exe logs weather-agent
+./agentos.exe scale weather-agent 2
+./agentos.exe undeploy weather-agent
+~~~
+
+Use --server http://host:port (or AGENTOS_SERVER) to target another running
+instance. agentos run also accepts manifests and deploys them at startup:
+
+~~~powershell
+./agentos.exe run ./example/weather/agent.yaml
+~~~
+
+Run agentos help for explanations and the complete command reference.
 
 ## API & Usage References
 
@@ -240,3 +264,4 @@ curl.exe "http://localhost:8080/proxy/weather-agent/invoke?city=Seattle"
 
 ### 10. List Marketplace templates
 * **Endpoint**: `GET /api/marketplace`
+

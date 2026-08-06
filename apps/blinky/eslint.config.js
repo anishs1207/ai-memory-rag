@@ -12,6 +12,14 @@ export default [
   // Use recommended configurations
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  {
+    files: ['**/*.cjs'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
   // Define workspace files and rules
   {
     files: ['**/*.{ts,tsx}'],
@@ -33,4 +41,3 @@ export default [
     },
   },
 ]
-

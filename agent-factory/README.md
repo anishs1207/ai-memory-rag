@@ -1,5 +1,9 @@
 Attempt to create a complex agentic factory which spawns agent and does software tasks end to end
 
+# TODO PRIORITY HIGH:
+- connect a slack / discord agent to a github repo to automaticlaly be able to prepae and test changes
+and make pr requests to the codebase
+
 delegeation (one agent delegaes to another one)
 agent builds features. writes tests, and does
 test written after implenation (do not catch bugs), sine they do not test impmneations
