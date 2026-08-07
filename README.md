@@ -1,68 +1,153 @@
-# Inqora: AI Agent Memory Framework
+# Inqora
 
-> A sophisticated cognitive memory framework for AI agents, integrating short-term conversation context, long-term semantic retrieval, persistent knowledge graphs, VLM visual memory, and hands-free desktop overlays.
+> **Inqora** is an enterprise-grade cognitive memory framework and multi-agent intelligence monorepo. It seamlessly unifies short-term working context, long-term semantic vector memory, knowledge graphs, VLM visual understanding, cross-platform mobile experiences, and hands-free desktop stealth overlays.
 
 ---
 
-## 🌟 Key Features
+## 🏗️ Architecture & Directory Structure
 
-### 🧠 1. Hierarchical Multi-Tier Memory
-*   **Short-Term Context (Working Memory)**: Keeps track of active conversations with a rolling window of recent turns and autonomous summarization when token limits are exceeded.
-*   **Long-Term Semantic Retrieval**: Leverages high-performance vector retrieval with Pinecone and Gemini embeddings, utilizing access-frequency tracking and logarithmic memory decay to simulate organic forgetfulness.
-*   **Persistent Knowledge Graph**: Extracts structural entity identities and social relationships from conversation content using LLMs, rendering links with evidence-based confidence levels.
-*   **Memory-Aware Chat Interface**: A web interface that visualizes exact memory sources (short-term, vector, or graph) utilized in every response.
+Inqora is organized as a high-performance monorepo managed via **Turborepo** and **npm workspaces**.
 
-### 📷 2. VLM Visual Memory System
-*   **Deep Scene Analysis**: Analyzes uploaded photos to extract comprehensive descriptions, text (OCR), emotional atmosphere, tags, and location contexts using **Gemini 1.5/2.5 Flash**.
-*   **Identity Vault & Face Clustering**: Detects people in photos, automatically crops profiles, refines identity descriptors over time, and supports merging duplicate identities.
-*   **Geospatial Tracking**: Extracts EXIF GPS coordinates from photos and maps paths onto an interactive geographic dashboard.
-*   **Daily Neural Reflections (Journals)**: Analyzes a day's visual memories to draft written reflections of daily activities and mood, ready to export as compiled PDF "Life Books".
-*   **Predictive Path Modeling**: Learns geospatial patterns to predict future locations and relationships.
+```text
+23-inqora/
+├── apps/
+│   ├── web/               # Next.js 16 frontend (Blinky showcase, Chat UI, Document OCR, Panel)
+│   ├── blinky/            # Electron + React 19 stealth desktop assistant overlay
+│   ├── server/            # Node.js Express backend (Vector memory, SQLite, BullMQ, LangChain)
+│   ├── agentos/           # Go-based high-performance agent runtime & CLI execution engine
+│   ├── rag-pipeline/      # Python FastAPI microservice for RAG document indexing & search
+│   ├── mobile-app/        # Cross-platform Expo / React Native app with NativeWind
+│   ├── docs/              # Mintlify documentation portal
+│   └── ai-video-editor/   # Next-gen visual media processing suite
+├── packages/
+│   ├── agent-orchestrator/# Shared multi-agent orchestration primitives
+│   ├── ui/                # Shared design system & React UI component library (@repo/ui)
+│   ├── eslint-config/     # Workspace-wide ESLint configurations
+│   ├── tailwind-config/   # Shared Tailwind CSS design system tokens
+│   └── typescript-config/ # Strict TypeScript base configurations
+├── agent-factory/         # Pre-configured agent sub-systems (e.g. slack-agent)
+└── infra/                 # Docker, task runner, and deployment scripts
+```
 
-### 🎙️ 3. Voice-Powered Desktop Overlay
-*   **Stealth Dashboard**: A customizable desktop overlay that can be resized into a compact toolbar, made semi-transparent, click-through, or hidden completely from screen-sharing software (Zoom/Teams).
-*   **Active Context Capture**: Instantly captures base64 screenshots to give the AI agent immediate visual awareness of your active workspace.
-*   **Hands-Free Speech Recognition**: Converse with the assistant via real-time speech-to-text with spoken Text-to-Speech (TTS) agent responses.
-*   **Local Application Execution**: Recognizes conversational intent (e.g. "open notepad", "launch chrome", "calculator") and opens native Windows applications locally.
+---
+
+## 🌟 Key Application Suites & Capabilities
+
+### 🌐 1. Web Platform (`apps/web`)
+
+- **Tech Stack**: Next.js 16 (App Router), React 19, Tailwind CSS v4, Framer Motion, Shiki, Recharts.
+- **Blinky Landing Page (`/`)**: Ultra-minimalist showcase with smooth micro-animations and high-contrast UI tokens.
+- **Memory-Aware Chat (`/chat`)**: Real-time interface revealing context provenance across working memory, vector stores, and knowledge graphs.
+- **Document & VLM OCR (`/document-ocr`)**: Multimodal document parsing powered by Gemini 1.5/2.5 Flash and LandingAI ADE.
+- **System Panel (`/panel`)**: System status monitoring and configuration management.
+
+### 🎙️ 2. Blinky Stealth Desktop Overlay (`apps/blinky`)
+
+- **Tech Stack**: Electron 34, React 19, Vite, Tailwind CSS.
+- **Stealth Dashboard**: Floating overlay with configurable transparency, click-through mode, and screen-share masking (Zoom/Teams friendly).
+- **Context Awareness**: Active screen screenshot capture giving immediate visual workspace context to AI agents.
+- **Hands-Free Voice**: Real-time Speech-to-Text (STT) and spoken Text-to-Speech (TTS) responses.
+- **Native System Execution**: Launches native local Windows/Mac applications based on conversational context.
+
+### ⚡ 3. Backend & Agent Microservices
+
+- **Core Server (`apps/server`)**: Node.js Express service backing multi-tiered vector storage (Pinecone, Qdrant, ChromaDB), SQLite cache, BullMQ job queues, and document processors (`pdfkit`, `mammoth`, `tesseract.js`).
+- **AgentOS (`apps/agentos`)**: Ultra-fast Go engine providing CLI management and low-overhead agent orchestration.
+- **RAG Microservice (`apps/rag-pipeline`)**: FastAPI & Python microservice dedicated to scalable vector chunking and document retrieval.
+- **Mobile App (`apps/mobile-app`)**: iOS & Android client built with Expo Router and NativeWind.
+
+---
+
+## 🧠 Hierarchical Memory System
+
+1.  **Short-Term Working Memory**: Maintains active conversation windows with automated summarization upon exceeding context bounds.
+2.  **Long-Term Semantic Vector Memory**: Dual Pinecone and Qdrant retrieval utilizing access frequency and logarithmic memory decay models.
+3.  **Knowledge Graph Integration**: Extracts structural entity identities and social relationships, linking evidence with confidence scores.
+4.  **Visual Memory (VLM)**: Analyzes photos and screen captures for deep scene descriptions, identity clustering, EXIF geospatial tracking, and neural journal generation.
 
 ---
 
 ## 🚀 Getting Started
 
-### Installation
+### Prerequisites
+
+- **Node.js**: `>=18.0.0`
+- **npm**: `>=10.0.0`
+- **Docker & Docker Compose** (Optional, for containerized local services)
+- **Go**: `>=1.21` (For `apps/agentos`)
+- **Python**: `>=3.10` (For `apps/rag-pipeline`)
+
+### Installation & Environment Setup
 
 1.  **Clone the repository**:
+
     ```bash
     git clone https://github.com/anishs1207/ai-memory.git
     cd 23-inqora
     ```
 
-2.  **Install dependencies**:
+2.  **Install Monorepo Dependencies**:
+
     ```bash
     npm install
     ```
 
-3.  **Environment Setup**:
-    Configure your `.env` variables at the root directory:
+3.  **Configure Environment Variables**:
+    Create a `.env` file in the root directory:
     ```env
     GEMINI_API_KEY=your_gemini_api_key
     DATABASE_URL=postgresql://user:password@127.0.0.1:5432/agentic_db?schema=public
-    NEO4J_URI=bolt://localhost:7687
-    NEO4J_USER=neo4j
-    NEO4J_PASSWORD=password
+    REDIS_HOST=localhost
+    REDIS_PORT=6379
     ```
 
-4.  **Run Development Servers**:
-    ```bash
-    # Launches backends and Next.js frontend in parallel via Turbo
-    npm run dev
-    ```
+### Local Infrastructure with Docker
+
+Launch PostgreSQL, Redis, backend services, and web apps with Docker Compose:
+
+```bash
+docker-compose up -d
+```
+
+### Development Commands
+
+Run monorepo tasks across all applications concurrently via **Turborepo**:
+
+```bash
+# Start all dev servers (Web on :3000, Server on :3001, Desktop, etc.)
+npm run dev
+
+# Compile production builds across all workspaces
+npm run build
+
+# Run ESLint validation
+npm run lint
+
+# Execute TypeScript typechecking across all packages
+npm run check-types
+
+# Execute unit and integration test suites
+npm run test
+```
 
 ---
 
-## 🛠️ CI/CD & Testing
+## 🛠️ Monorepo Package Reference
 
-The monorepo includes a GitHub Actions matrix workflow verifying the codebase on push/pull requests:
-*   **Multi-OS Testing Matrix**: Validates compatibility across `ubuntu-latest`, `macos-latest`, and `windows-latest`.
-*   **Tests & Verifications**: Compiles builds, checks styles (`npm run lint`), enforces TypeScript compilation (`npm run check-types`), and executes unit tests (`npm run test`).
+| Workspace Package          | Type            | Description                                                          |
+| -------------------------- | --------------- | -------------------------------------------------------------------- |
+| `apps/web`                 | Web Application | Next.js 16 chat interface, VLM document OCR, and Blinky landing page |
+| `apps/blinky`              | Desktop App     | Electron floating overlay assistant with speech & local control      |
+| `apps/server`              | Express Backend | Core API, vector retrieval, SQLite storage, and BullMQ queues        |
+| `apps/agentos`             | Go Service      | High-performance agent execution engine                              |
+| `apps/rag-pipeline`        | Python Service  | FastAPI containerized RAG pipeline                                   |
+| `apps/mobile-app`          | Mobile Client   | Expo React Native application                                        |
+| `apps/docs`                | Documentation   | Mintlify documentation suite                                         |
+| `@repo/ui`                 | Shared Package  | Shared React component library                                       |
+| `@repo/agent-orchestrator` | Shared Package  | Agent orchestration primitives                                       |
 
+---
+
+## 📜 License
+
+Distributed under the MIT License. See [LICENSE](file:///c:/Users/Anish/Documents/building/23-inqora/LICENSE) for more information.

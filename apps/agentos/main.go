@@ -12,7 +12,10 @@ import (
 	"time"
 )
 
-func startServer() {
+// to do add a new cli menu to be able to view imporatnt stuff
+// cli utloty for that 
+
+func main() {
 	fmt.Println("==================================================")
 	fmt.Println("             Starting AgentOS Engine              ")
 	fmt.Println("==================================================")
@@ -75,13 +78,13 @@ func startServer() {
 
 	// Monitor scale-to-zero for idle deployments.
 	scheduler.StartScaleToZeroMonitor(shutdownContext)
-
+	
 	// Monitor multiple metrics (CPU, Memory, RPS, Tokens, Queue) for horizontal replica autoscaling.
 	scheduler.StartMetricsAutoscaler(shutdownContext, observability, jobQueue)
-
+	
 	// Start async job processors.
 	jobQueue.Start(shutdownContext)
-
+	
 	// Start the active background reconciliation loop to self-heal crashed replicas.
 	scheduler.StartReconcilerLoop(shutdownContext)
 
@@ -143,3 +146,4 @@ func startServer() {
 
 	fmt.Println("[AgentOS] All processes terminated successfully. Shutdown complete.")
 }
+
