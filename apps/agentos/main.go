@@ -15,7 +15,8 @@ import (
 // to do add a new cli menu to be able to view imporatnt stuff
 // cli utloty for that 
 
-func main() {
+// startServer boots the AgentOS orchestrator engine, gateway server, autoscaler, and job queue background routines.
+func startServer() {
 	fmt.Println("==================================================")
 	fmt.Println("             Starting AgentOS Engine              ")
 	fmt.Println("==================================================")

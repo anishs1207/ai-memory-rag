@@ -1,4 +1,4 @@
-﻿# AgentOS Orchestrator Engine
+# AgentOS Orchestrator Engine
 
 AgentOS is a production-grade, lightweight, Kubernetes-like orchestrator for AI agents written in Go. It manages agent lifecycles, handles dynamic host port allocation, reverse-proxies and load-balances incoming traffic, implements scale-to-zero autoscaling, tracks costs, manages node fleets, coordinates multi-agent workflow pipelines, and processes long-running agent tasks via an internal background job queue.
 
@@ -143,10 +143,35 @@ env:
 
 ---
 
+## Installation
+
+An external user can install the `agentos` CLI directly using the automated installation scripts hosted on GitHub:
+
+### Linux / macOS
+```bash
+curl -fsSL https://raw.githubusercontent.com/anishs1207/inqora/main/apps/agentos/scripts/install.sh | bash
+```
+
+### Windows (PowerShell)
+```powershell
+iwr -useb https://raw.githubusercontent.com/anishs1207/inqora/main/apps/agentos/scripts/install.ps1 | iex
+```
+
+Or run locally from the repository root:
+```bash
+# Linux/macOS
+bash ./scripts/install-agentos.sh
+
+# Windows PowerShell
+.\scripts\install-agentos.ps1
+```
+
+---
+
 ## Quick Start Guide
 
 ### 1. Build and Run the Orchestrator
-Compile and start the Go server from the `apps/agent-infra` directory:
+Compile and start the Go server from the `apps/agentos` directory:
 ```powershell
 # Compile Go binary
 go build -o agentos.exe

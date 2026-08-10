@@ -1,0 +1,73 @@
+name: AgentOS CI/CD Binary Build
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'apps/agentos/**'
+      - '.github/workflows/build-agentos.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'apps/agentos/**'
+      - '.github/workflows/build-agentos.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Multi-Platform AgentOS Binaries
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+          cache-dependency-path: apps/agentos/go.sum
+
+      - name: Create bin directory
+        run: mkdir -p apps/agentos/bin
+
+      - name: Compile Linux (amd64 & arm64) binaries
+        run: |
+          cd apps/agentos
+          GOOS=linux GOARCH=amd64 go build -o bin/agentos-linux-amd64 .
+          GOOS=linux GOARCH=arm64 go build -o bin/agentos-linux-arm64 .
+
+      - name: Compile macOS (amd64 & arm64) binaries
+        run: |
+          cd apps/agentos
+          GOOS=darwin GOARCH=amd64 go build -o bin/agentos-darwin-amd64 .
+          GOOS=darwin GOARCH=arm64 go build -o bin/agentos-darwin-arm64 .
+
+      - name: Compile Windows (amd64 & arm64) binaries
+        run: |
+          cd apps/agentos
+          GOOS=windows GOARCH=amd64 go build -o bin/agentos-windows-amd64.exe .
+          GOOS=windows GOARCH=arm64 go build -o bin/agentos-windows-arm64.exe .
+
+      - name: Upload compiled binary artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentos-binaries
+          path: apps/agentos/bin/*
+
+      - name: Commit and push updated prebuilt binaries to repository
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add apps/agentos/bin/
+          if ! git diff --staged --quiet; then
+            git commit -m "chore(agentos): update prebuilt multi-platform binaries [ci skip]"
+            git push
+          else
+            echo "No binary changes detected."
+          fi
