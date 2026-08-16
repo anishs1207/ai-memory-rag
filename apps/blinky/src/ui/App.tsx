@@ -541,20 +541,40 @@ function App() {
     setClickyStatus('Researching the web...');
     setAiHereStatus(`Understanding your goal and researching: “${browserQuery}”`);
 
+    const immediateTracks = [
+      `${browserQuery} - official sources and primary facts`,
+      `${browserQuery} - alternatives, comparisons, and tradeoffs`,
+      `${browserQuery} - independent verification, risks, and recent changes`,
+    ];
+    const immediateTaskSteps: BrowserStep[] = immediateTracks.map((track, index) => ({
+      query: track,
+      timestamp: actionTimestamp,
+      targetUrl: `https://www.google.com/search?q=${encodeURIComponent(track)}`,
+      summary: `Worker ${index + 1} started immediately...`,
+      kind: 'task' as const,
+    }));
+    setBrowserSteps((prevSteps) => [...immediateTaskSteps, ...prevSteps]);
+    setAiHereStatus('3 browser workers started. Refining their assignments...');
+
     let runtimeTaskId = '';
+    let plannedTracks = immediateTracks;
     try {
-      setAiHereStatus('Planning parallel browser workers...');
-      const planResponse = await window.electron.claudeWebPlan(browserQuery);
-      if (planResponse.success === false) throw new Error(planResponse.error);
-      const plannedTracks = planResponse.tracks.slice(0, 4);
-      const provisionalTaskSteps: BrowserStep[] = plannedTracks.map((track, index) => ({
+      try {
+        if (typeof window.electron.claudeWebPlan === 'function') {
+          const planResponse = await window.electron.claudeWebPlan(browserQuery);
+          if (planResponse.success) plannedTracks = planResponse.tracks.slice(0, 4);
+        }
+      } catch (planningError) {
+        console.warn('Parallel planner unavailable; using immediate worker tracks:', planningError);
+      }
+      const refinedTaskSteps: BrowserStep[] = plannedTracks.map((track, index) => ({
         query: track,
         timestamp: actionTimestamp,
         targetUrl: `https://www.google.com/search?q=${encodeURIComponent(track)}`,
         summary: `Worker ${index + 1} is researching this track...`,
         kind: 'task' as const,
       }));
-      setBrowserSteps((prevSteps) => [...provisionalTaskSteps, ...prevSteps]);
+      setBrowserSteps((prevSteps) => [...refinedTaskSteps, ...prevSteps.filter((step) => !(step.kind === 'task' && step.timestamp === actionTimestamp))]);
       setAiHereStatus(`${plannedTracks.length} browser workers are researching in parallel...`);
       const plannedRuntime = await window.electron.dispatchTaskCommand({
         type: 'create',

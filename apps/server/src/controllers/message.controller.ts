@@ -14,6 +14,8 @@ import { documentQueue } from "@/lib/queue.js";
 interface EmbeddingContext {
   name: string;
   description: string;
+  chunkIndex: number;
+  score: number;
 }
 
 type RAGResult = {
@@ -24,6 +26,10 @@ type RAGResult = {
     score?: number;
   }[];
 };
+
+function isProviderQuotaError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "status" in error && error.status === 429;
+}
 
 const ChatLegal = async (req: Request, res: Response) => {
   try {
@@ -53,7 +59,13 @@ const ChatLegal = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       success: true,
-      data: responseText
+      data: responseText,
+      sources: embeddingContexts.map((context) => ({
+        name: context.name,
+        chunkIndex: context.chunkIndex,
+        content: context.description,
+        score: context.score,
+      })),
     })
 
   } catch (err: any) {
@@ -100,7 +112,13 @@ const ChatFinance = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       success: true,
-      data: responseText
+      data: responseText,
+      sources: embeddingContexts.map((context) => ({
+        name: context.name,
+        chunkIndex: context.chunkIndex,
+        content: context.description,
+        score: context.score,
+      })),
     })
 
   } catch (err: any) {
@@ -160,6 +178,13 @@ const ChatGeneral = async (req: Request, res: Response) => {
         success: false,
         error: err.issues[0]?.message || "Validation Error"
       });
+    }
+    if (isProviderQuotaError(err)) {
+      console.warn("ChatGeneral: Claude rate limit or quota exhausted")
+      return res.status(429).json({
+        success: false,
+        error: "Claude API rate limit or quota is exhausted. Wait and retry, check Anthropic billing, or select the local SmolLM model.",
+      })
     }
     console.error("ChatGeneral Error:", err)
     return res.status(500).json({

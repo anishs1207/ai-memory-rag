@@ -56,6 +56,7 @@ import axios from "axios"
 import { Loader } from "@/components/prompt-kit/loader"
 import { BudgetModal } from "./BudgetModal"
 import { Wallet, BookOpen, Download } from "lucide-react"
+import { RagSources, type RagSource } from "./RagSources"
 
 const MODEL_CONFIGS: Record<ModelType, { label: string; icon: any; color: string }> = {
     general: { label: "General", icon: Bot, color: "text-blue-500" },
@@ -88,6 +89,7 @@ type ChatMessage = {
     requiresConfirmation?: boolean;
     confirmed?: boolean;
     pdfUrl?: string;
+    sources?: RagSource[];
 };
 
 type Conversation = {
@@ -97,7 +99,7 @@ type Conversation = {
     messages: ChatMessage[];
     selectedFile?: string;
     timestamp: number;
-    llm?: "gemini" | "smollm" | "sf_financial_qa" | "dpo_adapter";
+    llm?: "claude" | "gemini" | "smollm" | "sf_financial_qa" | "dpo_adapter";
 };
 
 type UploadQueueItem = {
@@ -250,7 +252,7 @@ export default function ChatContent({
             const url = ROUTE_MAP[conversation.model];
             const payload = {
                 prompt: input,
-                llm: conversation.llm || "gemini",
+                llm: conversation.llm || "claude",
                 ...(conversation.model === "pdf" && { fileName: conversation.selectedFile })
             };
 
@@ -258,6 +260,7 @@ export default function ChatContent({
                 success: boolean;
                 data?: string;
                 error?: string;
+                sources?: RagSource[];
             }>(url, payload);
 
             const isAnalyze = input.toLowerCase().includes("analyze");
@@ -267,6 +270,7 @@ export default function ChatContent({
                 id: (Date.now() + 1).toString(),
                 role: "assistant",
                 content: response.data.data || "No response received.",
+                sources: response.data.sources,
                 ...(isAnalyze && {
                     reasoning: {
                         steps: [
@@ -431,7 +435,7 @@ export default function ChatContent({
                 error?: string;
             }>(`${SERVER_URL}/api/v1/message/research`, {
                 topic: researchTopic,
-                llm: conversation.llm || "gemini"
+                llm: conversation.llm || "claude"
             });
             const docContent = res.data.data;
             const pdfUrl = res.data.pdfUrl;
@@ -488,15 +492,15 @@ export default function ChatContent({
 
                         {/* LLM Model Dropdown Selector */}
                         <Select
-                            value={conversation.llm || "gemini"}
-                            onValueChange={(val: "gemini" | "smollm" | "sf_financial_qa" | "dpo_adapter") => updateConversation(conversation.id, { llm: val })}
+                            value={conversation.llm === "gemini" ? "claude" : (conversation.llm || "claude")}
+                            onValueChange={(val: "claude" | "smollm" | "sf_financial_qa" | "dpo_adapter") => updateConversation(conversation.id, { llm: val })}
                         >
                             <SelectTrigger className="h-8 text-xs w-[140px] rounded-full border bg-background hover:bg-muted font-medium transition-colors cursor-pointer">
                                 <SelectValue placeholder="Select LLM" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="gemini" className="text-xs">
-                                    Gemini 2.5 Flash
+                                <SelectItem value="claude" className="text-xs">
+                                    Claude Sonnet
                                 </SelectItem>
                                 <SelectItem value="smollm" className="text-xs">
                                     smolLM 135 SFT
@@ -664,8 +668,10 @@ export default function ChatContent({
                                                     </MessageContent>
                                                 )}
 
+                                                {message.sources && <RagSources sources={message.sources} />}
+
                                                 {message.pdfUrl && (
-                                                    <div className="mt-4 p-4 rounded-xl bg-orange-500/5 border border-orange-500/20 flex items-center justify-between group/pdf">
+                                                    <div className="mt-4 p-4 rounded-xl bg-orange-500/5 border border-orange-500/20 flex flex-wrap items-center justify-between gap-3 group/pdf">
                                                         <div className="flex items-center gap-3">
                                                             <div className="size-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
                                                                 <FileText className="size-5 text-orange-600" />
@@ -697,6 +703,11 @@ export default function ChatContent({
                                                                 Download
                                                             </Button>
                                                         </div>
+                                                        <iframe
+                                                            src={`${SERVER_URL}${message.pdfUrl}#toolbar=1&navpanes=0`}
+                                                            title="Generated research report preview"
+                                                            className="h-[420px] w-full basis-full rounded-lg border bg-white"
+                                                        />
                                                     </div>
                                                 )}
 

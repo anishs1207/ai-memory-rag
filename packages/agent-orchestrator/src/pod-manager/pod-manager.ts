@@ -1,10 +1,10 @@
 import type { QueuedStep, Pod } from "../types/workflow.js"
-import { podPool } from "../k8s/pod-pool.js"
+import { runnerPool } from "../runner/runner-pool.js"
 import { resultQueue } from "../queue/result-queue.js"
 
 /**
- * PodManager receives a queued step, acquires a free pod from podPool,
- * runs the command inside the pod, and publishes status events to resultQueue.
+ * PodManager receives a queued step, leases an execution runner,
+ * runs the command, and publishes status events to resultQueue.
  */
 export class PodManager {
   async dispatch(step: QueuedStep): Promise<void> {
@@ -13,7 +13,7 @@ export class PodManager {
     // Acquire a free pod from the pool, retrying if pool is temporarily exhausted
     while (!leasedPod) {
       try {
-        leasedPod = await podPool.acquirePod()
+        leasedPod = await runnerPool.acquirePod()
       } catch (error: unknown) {
         if (error instanceof Error && error.message === "NO_POD_AVAILABLE") {
           // Wait briefly before retrying pod acquisition
@@ -45,7 +45,7 @@ export class PodManager {
       })
 
       // Step 2: Execute command inside container
-      const stdout = await podPool.execInPod(podId, step.command)
+      const stdout = await runnerPool.execInPod(podId, step.command)
 
       // Step 3: Publish completed status with command output
       await resultQueue.push({
@@ -68,7 +68,7 @@ export class PodManager {
       })
     } finally {
       // Step 4: Always release pod back to pool for next step
-      await podPool.releasePod(podId)
+      await runnerPool.releasePod(podId)
     }
   }
 }

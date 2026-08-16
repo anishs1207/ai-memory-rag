@@ -1,5 +1,5 @@
 import express from "express"
-import { podPool } from "../k8s/pod-pool.js"
+import { runnerPool } from "../runner/runner-pool.js"
 import { orchestrator } from "./orchestrator.js"
 import { getWorkflow } from "./workflow-store.js"
 import type { Workflow } from "../types/workflow.js"
@@ -40,10 +40,10 @@ app.get("/workflow/:id", (req, res) => {
   res.json(state)
 })
 
-// GET /pods — returns current Kubernetes pod pool lease status
+// GET /pods - returns current execution runner lease status
 app.get("/pods", async (_req, res) => {
-  const status = podPool.getPoolStatus()
-  res.json(status)
+  const status = runnerPool.getPoolStatus()
+  res.json({ backend: runnerPool.mode, ...status })
 })
 
 export { app }

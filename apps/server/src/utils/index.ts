@@ -1,8 +1,6 @@
-import {
-  GoogleGenAI,
-  createUserContent,
-} from "@google/genai";
 import { smollmClient } from "./smollm.js";
+
+const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 
 // Rule 2: Add comments explaining important logic
 export async function geminiClient(prompt: string, llm?: string) {
@@ -23,14 +21,36 @@ export async function geminiClient(prompt: string, llm?: string) {
         return smollmClient(prompt, "dpo_adapter");
     }
     
-    console.log("[LOG] Routing prompt to Google Gemini 2.5 Flash API");
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
-    const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [createUserContent(prompt)],
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error("ANTHROPIC_API_KEY is missing from apps/server/.env");
+
+    const model = process.env.CLAUDE_MODEL || "claude-sonnet-4-6";
+    console.log(`[LOG] Routing prompt to Anthropic Claude (${model})`);
+    const response = await fetch(ANTHROPIC_MESSAGES_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({ model, max_tokens: 2048, messages: [{ role: "user", content: prompt }] }),
     });
 
-    return result;
+    const payload = await response.json() as {
+      content?: Array<{ type: string; text?: string }>;
+      error?: { message?: string };
+    };
+    if (!response.ok) {
+      const error = new Error(payload.error?.message || `Claude request failed with status ${response.status}`) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    const responseText = payload.content
+      ?.filter((block) => block.type === "text")
+      .map((block) => block.text || "")
+      .join("\n") || "";
+    return { text: responseText };
 }
 
 export function getText(result: any): string {

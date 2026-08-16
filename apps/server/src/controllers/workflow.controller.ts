@@ -1,5 +1,5 @@
 import type { Request, Response } from "express"
-import { orchestrator, getWorkflow, podPool, type Workflow } from "@inqora/common"
+import { orchestrator, getWorkflow, runnerPool, type Workflow } from "@inqora/common"
 
 /**
  * Controller for submitting a new workflow.
@@ -44,9 +44,9 @@ export function getWorkflowHandler(req: Request, res: Response): void {
 }
 
 /**
- * Controller for getting current Kubernetes pod pool lease status.
+ * Controller for getting current execution runner lease status.
  */
 export function getPodsHandler(_req: Request, res: Response): void {
-  const status = podPool.getPoolStatus()
-  res.json(status)
+  const status = runnerPool.getPoolStatus()
+  res.json({ backend: runnerPool.mode, ...status })
 }

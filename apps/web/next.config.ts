@@ -6,10 +6,15 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   async rewrites() {
+    const serverUrl = process.env.SERVER_API_URL || 'http://localhost:3001';
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.SERVER_API_URL || 'http://server:3001'}/api/:path*`,
+        destination: `${serverUrl}/api/:path*`,
+      },
+      {
+        source: '/uploads/:path*',
+        destination: `${serverUrl}/uploads/:path*`,
       },
     ];
   },

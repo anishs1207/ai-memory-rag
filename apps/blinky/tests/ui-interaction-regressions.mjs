@@ -179,8 +179,10 @@ async function verifyWorkerBrowsersSpawnBeforeResearch() {
   const app = await readFile(appPath, 'utf8');
   const handler = app.slice(app.indexOf('const handleAiHereBrowse'), app.indexOf('// --- AUTOMATED WINDOWS ACTIONS ---'));
   const provisionalWorkers = handler.indexOf("kind: 'task' as const");
+  const planningStarts = handler.indexOf('window.electron.claudeWebPlan');
   const researchStarts = handler.indexOf('window.electron.claudeWebResearch');
   assert.ok(provisionalWorkers >= 0, 'browser tasks must create provisional worker sessions');
+  assert.ok(provisionalWorkers < planningStarts, 'worker browsers must spawn before planner IPC starts');
   assert.ok(provisionalWorkers < researchStarts, 'worker browsers must spawn before parallel research starts');
 }
 

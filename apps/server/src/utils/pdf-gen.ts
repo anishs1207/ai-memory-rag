@@ -1,67 +1,109 @@
-import fs from 'fs';
-import path from 'path';
-import axios from 'axios';
+import fs from "node:fs";
+import path from "node:path";
+import PDFDocument from "pdfkit";
+
+type ResearchBlock = {
+    kind: "heading" | "subheading" | "bullet" | "paragraph";
+    text: string;
+};
+
+function decodeLatexText(value: string): string {
+    return value
+        .replace(/\\href\{([^}]*)\}\{([^}]*)\}/g, "$2 ($1)")
+        .replace(/\\(?:textbf|textit|emph|underline)\{([^{}]*)\}/g, "$1")
+        .replace(/\\(?:url)\{([^{}]*)\}/g, "$1")
+        .replace(/\\[$%&#_{}]/g, (match) => match.slice(1))
+        .replace(/~+/g, " ")
+        .replace(/\\(?:label|ref|cite)\{[^{}]*\}/g, "")
+        .replace(/\\[a-zA-Z]+\*?(?:\[[^\]]*\])?/g, "")
+        .replace(/[{}]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+export function parseLatexResearch(content: string): ResearchBlock[] {
+    let normalized = content
+        .replace(/```(?:latex|tex)?/gi, "")
+        .replace(/```/g, "")
+        .replace(/%.*$/gm, "")
+        .replace(/\\begin\{document\}/g, "\n")
+        .replace(/\\end\{document\}/g, "\n")
+        .replace(/\\(?:documentclass|usepackage)(?:\[[^\]]*\])?\{[^}]*\}/g, "")
+        .replace(/\\(?:title|author|date)\{[^}]*\}/g, "")
+        .replace(/\\(?:maketitle|tableofcontents|newpage|clearpage)\b/g, "")
+        .replace(/\\section\*?\{([^}]*)\}/g, "\n@@HEADING@@$1\n")
+        .replace(/\\subsection\*?\{([^}]*)\}/g, "\n@@SUBHEADING@@$1\n")
+        .replace(/\\subsubsection\*?\{([^}]*)\}/g, "\n@@SUBHEADING@@$1\n")
+        .replace(/\\item\s*/g, "\n@@BULLET@@")
+        .replace(/\\(?:begin|end)\{(?:itemize|enumerate|description|center|flushleft|flushright)\}/g, "\n")
+        .replace(/\\\\/g, "\n");
+
+    const blocks: ResearchBlock[] = [];
+    for (const rawPart of normalized.split(/\n{2,}|\r?\n/)) {
+        const part = rawPart.trim();
+        if (!part) continue;
+
+        let kind: ResearchBlock["kind"] = "paragraph";
+        let value = part;
+        if (part.startsWith("@@HEADING@@")) {
+            kind = "heading";
+            value = part.slice("@@HEADING@@".length);
+        } else if (part.startsWith("@@SUBHEADING@@")) {
+            kind = "subheading";
+            value = part.slice("@@SUBHEADING@@".length);
+        } else if (part.startsWith("@@BULLET@@")) {
+            kind = "bullet";
+            value = part.slice("@@BULLET@@".length);
+        }
+
+        const text = decodeLatexText(value);
+        if (text) blocks.push({ kind, text });
+    }
+    return blocks;
+}
 
 export async function generateResearchPDF(topic: string, content: string, fileName: string): Promise<string> {
-    const uploadsDir = path.join(process.cwd(), 'uploads');
-    if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-    const filePath = path.join(uploadsDir, fileName);
+    const uploadsDir = path.join(process.cwd(), "uploads");
+    await fs.promises.mkdir(uploadsDir, { recursive: true });
 
-    try {
-        console.log(`[PDF-Gen] Compiling LaTeX for topic: ${topic}`);
+    const safeFileName = path.basename(fileName).replace(/[^a-zA-Z0-9._-]/g, "-");
+    const pdfFileName = safeFileName.toLowerCase().endsWith(".pdf") ? safeFileName : `${safeFileName}.pdf`;
+    const filePath = path.join(uploadsDir, pdfFileName);
+    const blocks = parseLatexResearch(content);
 
-        // Ensure we have a proper document structure if the AI didn't provide one
-        let fullLatex = content;
-        if (!content.includes('\\documentclass')) {
-            fullLatex = `
-\\documentclass[12pt]{article}
-\\usepackage[utf8]{inputenc}
-\\usepackage[T1]{fontenc}
-\\usepackage{hyperref}
-\\usepackage{geometry}
-\\geometry{margin=1in}
+    console.log(`[PDF-Gen] Generating local PDF for topic: ${topic}`);
 
-\\title{Research Report: ${topic}}
-\\author{PAXIO Memory AI}
-\\date{\\today}
+    await new Promise<void>((resolve, reject) => {
+        const document = new PDFDocument({ size: "A4", margin: 54, info: { Title: topic, Author: "Inqora AI" } });
+        const output = fs.createWriteStream(filePath);
+        output.on("finish", resolve);
+        output.on("error", reject);
+        document.on("error", reject);
+        document.pipe(output);
 
-\\begin{document}
-\\maketitle
+        document.font("Helvetica-Bold").fontSize(22).fillColor("#111827").text(topic, { align: "center" });
+        document.moveDown(0.5);
+        document.font("Helvetica").fontSize(9).fillColor("#6B7280").text(`Generated ${new Date().toLocaleDateString()}`, { align: "center" });
+        document.moveDown(2);
 
-${content}
-
-\\end{document}
-            `;
+        for (const block of blocks) {
+            if (block.kind === "heading") {
+                document.moveDown(0.8).font("Helvetica-Bold").fontSize(16).fillColor("#111827").text(block.text).moveDown(0.35);
+            } else if (block.kind === "subheading") {
+                document.moveDown(0.5).font("Helvetica-Bold").fontSize(13).fillColor("#1F2937").text(block.text).moveDown(0.25);
+            } else if (block.kind === "bullet") {
+                document.font("Helvetica").fontSize(10.5).fillColor("#374151").text(`•  ${block.text}`, { indent: 12, lineGap: 3 }).moveDown(0.3);
+            } else {
+                document.font("Helvetica").fontSize(10.5).fillColor("#374151").text(block.text, { align: "justify", lineGap: 3 }).moveDown(0.65);
+            }
         }
 
-        // Using a reliable cloud LaTeX compiler API (latex.ytane.com or similar)
-        // Note: In a production app, you might use a dedicated service like Overleaf API or a self-hosted latex-container
-        const response = await axios({
-            method: 'post',
-            url: 'https://latex.ytane.com/compile',
-            data: {
-                latex: fullLatex,
-                generator: 'pdflatex'
-            },
-            responseType: 'arraybuffer',
-            timeout: 30000 // 30s timeout for compilation
-        });
-
-        if (response.status === 200) {
-            fs.writeFileSync(filePath, response.data);
-            console.log(`[PDF-Gen] PDF generated successfully: ${fileName}`);
-            return `/uploads/${fileName}`;
-        } else {
-            throw new Error(`Compiler API returned status ${response.status}`);
+        if (blocks.length === 0) {
+            document.font("Helvetica").fontSize(11).fillColor("#374151").text("No research content was generated.");
         }
-    } catch (err: any) {
-        console.error("[PDF-Gen] LaTeX Compilation Error:", err.message);
-        
-        // Fallback to minimal PDF if compilation fails
-        // (This preserves the original logic but adds a warning)
-        console.warn("[PDF-Gen] Falling back to text-based PDF due to compilation error.");
-        throw new Error(`LaTeX compilation failed: ${err.message}`);
-    }
+        document.end();
+    });
+
+    console.log(`[PDF-Gen] PDF generated locally: ${pdfFileName}`);
+    return `/uploads/${pdfFileName}`;
 }

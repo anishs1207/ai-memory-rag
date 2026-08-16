@@ -134,7 +134,7 @@ export default function ChatSidebar({
                 <NavUser user={{
                     name: "User",
                     email: "user@example.com",
-                    avatar: "/avatars/user.jpg",
+                    avatar: "/avatars/user.svg",
                 }} />
             </SidebarFooter>
         </Sidebar>

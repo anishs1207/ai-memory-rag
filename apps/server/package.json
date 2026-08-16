@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc && tsc-alias",
     "dev": "npm run build && node dist/index.js",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test:pdf": "npm run build && node tests/pdf-gen-smoke.mjs"
   },
   "keywords": [],
   "author": "",

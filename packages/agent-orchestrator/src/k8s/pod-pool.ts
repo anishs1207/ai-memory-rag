@@ -94,6 +94,7 @@ function timeoutAfter(ms: number): Promise<never> {
 }
 
 export class PodPool {
+  readonly mode = "kubernetes" as const
   private readonly namespace = process.env.KUBE_NAMESPACE || DEFAULT_NAMESPACE
   private readonly labelSelector = process.env.KUBE_POD_LABEL || DEFAULT_LABEL_SELECTOR
   private readonly leaseMap = new Map<string, string | null>()
@@ -243,5 +244,3 @@ export class PodPool {
     }
   }
 }
-
-export const podPool = new PodPool()

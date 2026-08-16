@@ -12,6 +12,8 @@ export interface Embedding {
 export interface EmbeddingContext {
   name: string;
   description: string;
+  chunkIndex: number;
+  score: number;
 }
 
 export class VectorStore {
@@ -428,9 +430,11 @@ export const runRAG = async (query: string, baseDir: string): Promise<EmbeddingC
   const vectorStore = new VectorStore(baseDir);
   const embeddings: Embedding[] = await vectorStore.getAllEmbeddings();
 
-  const allContexts: EmbeddingContext[] = embeddings.map((e) => ({
+  const allContexts: EmbeddingContext[] = embeddings.map((e, chunkIndex) => ({
     name: e.metadata.name,
     description: e.content,
+    chunkIndex,
+    score: 0,
   }));
 
   const lowerQuery = query.toLowerCase().trim();

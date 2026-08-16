@@ -24,6 +24,12 @@ export interface ChatMessage {
   requiresConfirmation?: boolean;
   confirmed?: boolean;
   pdfUrl?: string;
+  sources?: {
+    name: string;
+    chunkIndex: number;
+    content: string;
+    score: number;
+  }[];
 }
 
 export interface Conversation {
@@ -33,7 +39,7 @@ export interface Conversation {
   messages: ChatMessage[];
   selectedFile?: string;
   timestamp: number;
-  llm?: "gemini" | "smollm" | "sf_financial_qa" | "dpo_adapter";
+  llm?: "claude" | "gemini" | "smollm" | "sf_financial_qa" | "dpo_adapter";
 }
 
 export interface ChatState {

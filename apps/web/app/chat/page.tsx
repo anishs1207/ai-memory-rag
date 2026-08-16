@@ -65,7 +65,7 @@ export default function FullChatApp() {
             model: "general",
             messages: [],
             timestamp: Date.now(),
-            llm: "gemini"
+            llm: "claude"
         };
         dispatch(addConversation(newChat));
     };
@@ -79,7 +79,7 @@ export default function FullChatApp() {
                 model: "general",
                 messages: [],
                 timestamp: Date.now(),
-                llm: "gemini"
+                llm: "claude"
             };
             dispatch(addConversation(newChat));
             dispatch(deleteConversation(id));
