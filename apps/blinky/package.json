@@ -11,6 +11,7 @@
     "dev:react": "vite",
     "dev:electron": "npm run transpile:electron && wait-on http://localhost:5123 && cross-env NODE_ENV=development electron .",
     "build": "tsc -b && vite build",
+    "test": "node tests/ui-interaction-regressions.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "transpile:electron": "tsc --project src/electron/tsconfig.json",
@@ -19,7 +20,6 @@
     "dist:linux": "npm run transpile:electron && npm run build && electron-builder --linux --x64"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
     "framer-motion": "^12.38.0",

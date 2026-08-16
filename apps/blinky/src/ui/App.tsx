@@ -7,6 +7,17 @@ import { AIHereBrowser, type BrowserStep } from './components/AIHereBrowser';
 import { LogoBar } from './components/LogoBar';
 import type { ExecutionLog } from './components/VoiceActionPanel';
 import type { HistoryItem, ChatMessage } from './types';
+import { parseScreenAnnotationPlan, type ScreenAnnotation } from './screenAnnotations';
+
+function getScreenshotDimensions(base64Image: string): Promise<{ width: number; height: number }> {
+  const mediaType = base64Image.startsWith('iVBOR') ? 'image/png' : 'image/jpeg';
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => reject(new Error('Could not read screenshot dimensions.'));
+    image.src = `data:${mediaType};base64,${base64Image}`;
+  });
+}
 
 /**
  * App is the root container of Inqora's blinky client application.
@@ -23,10 +34,11 @@ function App() {
   const [aiResponse, setAiResponse] = useState<string>("Hello! I'm your Inqora AI assistant. Ask me anything about your screen, or toggle Guide Mode to have me show you the way.");
   const [isAiLoading, setIsAiLoading] = useState(false);
 
-  // --- CLICKY GUIDE & REGION SELECTION STATES ---
+  // --- BLINKY GUIDE & REGION SELECTION STATES ---
   const [cursorColor, setCursorColor] = useState<'cyan' | 'purple' | 'green' | 'orange' | 'gold'>('cyan');
   const [isRegionSelecting, setIsRegionSelecting] = useState<boolean>(false);
   const [guideSteps, setGuideSteps] = useState<GuideStep[]>([]);
+  const [screenAnnotations, setScreenAnnotations] = useState<ScreenAnnotation[]>([]);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
 
@@ -45,12 +57,6 @@ function App() {
   const [capturedScreenshot, setCapturedScreenshot] = useState<string | null>(null);
   // Auto-take screenshot right before sending to LLM
   const [autoAttachScreenshot, setAutoAttachScreenshot] = useState<boolean>(true);
-  // Embedded AI Here browser loading state
-  const [webviewLoading, setWebviewLoading] = useState<boolean>(true);
-
-  // Browser navigation state for AI Here webview
-  const [canGoBack, setCanGoBack] = useState<boolean>(false);
-  const [canGoForward, setCanGoForward] = useState<boolean>(false);
   const [currentUrl, setCurrentUrl] = useState<string>("https://www.google.com/");
 
   // State for recording system application execution outcomes
@@ -67,15 +73,16 @@ function App() {
 
   // Speech Recognition states
   const [isListening, setIsListening] = useState<boolean>(false);
+  const [voiceInputStatus, setVoiceInputStatus] = useState<string>('');
+  const [isVoiceTypingFallback, setIsVoiceTypingFallback] = useState(false);
   const [speechSupported] = useState<boolean>(() => {
+    if (window.electron?.platform === 'win32') return true;
     if (typeof window === 'undefined') return false;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
   });
 
   // --- REFS ---
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const webviewRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
 
@@ -84,6 +91,12 @@ function App() {
   useEffect(() => {
     document.documentElement.style.setProperty('--bg-opacity', bgOpacity.toString());
   }, [bgOpacity]);
+
+  useEffect(() => {
+    if (!isGuideMode) {
+      setScreenAnnotations([]);
+    }
+  }, [isGuideMode]);
 
   // --- LOCAL CHAT HISTORY PERSISTENCE STATE & HANDLERS ---
   const [chatHistory, setChatHistory] = useState<HistoryItem[]>([]);
@@ -167,6 +180,20 @@ function App() {
 
   // Sync mixed click-through pointer events on overlay windows to ignore clicks
   useEffect(() => {
+    // Cropping is an interactive full-screen operation. It must take precedence
+    // over Guide Mode and user-configured click-through until the drag completes.
+    if (isRegionSelecting) {
+      window.electron.setIgnoreMouseEvents(false);
+      return;
+    }
+
+    // Embedded webviews run in a guest process, so renderer hover events cannot
+    // reliably recover a click-through window. AI Here must stay interactive.
+    if (windowMode === 'aihere') {
+      window.electron.setIgnoreMouseEvents(false);
+      return;
+    }
+
     // Normal Dashboard Mode: keep window 100% interactive for all clicks, inputs, and tab switches
     if (!isGuideMode && !clickThrough) {
       window.electron.setIgnoreMouseEvents(false);
@@ -207,7 +234,7 @@ function App() {
       window.removeEventListener('mousemove', handleMouseMove);
       window.electron.setIgnoreMouseEvents(false);
     };
-  }, [isGuideMode, clickThrough]);
+  }, [isGuideMode, clickThrough, isRegionSelecting, windowMode]);
 
   // Sync full screen and restore normal sizing when entering/exiting Guide Mode
   useEffect(() => {
@@ -228,56 +255,9 @@ function App() {
     }
   }, [isGuideMode, windowMode]);
 
-  // --- WEBVIEW NAVIGATION HANDLERS ---
-  const handleWebviewLoadStop = () => {
-    setWebviewLoading(false);
-    if (webviewRef.current) {
-      try {
-        setCanGoBack(webviewRef.current.canGoBack());
-        setCanGoForward(webviewRef.current.canGoForward());
-        setCurrentUrl(webviewRef.current.getURL());
-      } catch (err) {
-        console.error("Webview navigation query error:", err);
-      }
-    }
-  };
-
-  useEffect(() => {
-    const webview = webviewRef.current;
-    if (webview) {
-      webview.addEventListener('did-stop-loading', handleWebviewLoadStop);
-      webview.addEventListener('did-start-loading', () => setWebviewLoading(true));
-      return () => {
-        webview.removeEventListener('did-stop-loading', handleWebviewLoadStop);
-        webview.removeEventListener('did-start-loading', () => setWebviewLoading(true));
-      };
-    }
-  }, [windowMode]); // Reload listeners on mode switch to bind to fresh webview node
-
-  const handleWebviewBack = () => {
-    if (webviewRef.current && canGoBack) webviewRef.current.goBack();
-  };
-
-  const handleWebviewForward = () => {
-    if (webviewRef.current && canGoForward) webviewRef.current.goForward();
-  };
-
-  const handleWebviewReload = () => {
-    if (webviewRef.current) webviewRef.current.reload();
-  };
-
   const loadAiHereUrl = useCallback((targetUrl: string) => {
     setCurrentUrl(targetUrl);
-    setWebviewLoading(true);
     setWindowMode('aihere');
-
-    if (webviewRef.current) {
-      try {
-        webviewRef.current.loadURL(targetUrl);
-      } catch (err) {
-        console.error("AI Here browser load error:", err);
-      }
-    }
   }, []);
 
   /**
@@ -422,6 +402,7 @@ function App() {
           );
           const croppedDataUrl = canvas.toDataURL('image/jpeg');
           setCapturedScreenshot(croppedDataUrl);
+          setIsGuideMode(false);
           setAiResponse("Circled region captured! Ask a question or click Assist.");
           speak("Circled region captured. What would you like to know about it?");
         }
@@ -460,10 +441,10 @@ function App() {
         if (isGuideMode) {
           prompt += '\nProvide step-by-step guidance. Include JSON block at end: ```json\n[{"stepNumber":1,"x":300,"y":200,"label":"Step 1","description":"Click here","annotationType":"circle"}]\n```';
         }
-        response = await window.electron.geminiVision(prompt, base64Data);
+        response = await window.electron.claudeVision(prompt, base64Data);
       } else {
         if (!query) return;
-        response = await window.electron.geminiChat(query);
+        response = await window.electron.claudeChat(query);
       }
 
       // Parse multi-step guidance JSON if present
@@ -501,7 +482,7 @@ function App() {
       console.error('Assist error:', err);
       const is503 = String(err).includes('503') || String(err).includes('Service Unavailable');
       const errText = is503
-        ? "Gemini API is currently experiencing high demand (503 Service Unavailable). Please click Retry below."
+        ? "Claude API is currently experiencing high demand (503 Service Unavailable). Please click Retry below."
         : "Sorry, I had trouble reaching the AI service. Please check your connection.";
 
       setAiResponse(errText);
@@ -523,13 +504,13 @@ function App() {
     if (!inputValue) return;
     setIsAiLoading(true);
     try {
-      const response = await window.electron.gemmaChat(inputValue);
+      const response = await window.electron.claudeChat(inputValue);
       setAiResponse(response);
       speak(response);
       saveHistoryEntry(inputValue, response, null);
     } catch (err) {
       console.error('Smart error:', err);
-      setAiResponse("Sorry, I had trouble reaching Gemma.");
+      setAiResponse("Sorry, I had trouble reaching Claude.");
     } finally {
       setIsAiLoading(false);
     }
@@ -545,70 +526,64 @@ function App() {
     if (!browserQuery) return;
 
     const actionTimestamp = new Date().toLocaleTimeString();
-    setWindowMode('aihere');
-    setAiHereStatus('Planning an in-app browser path...');
-    setIsAiLoading(true);
-
-    try {
-      const browserPrompt = `You are choosing the first page for an embedded browser agent.
-User request: "${browserQuery}"
-
-Return only compact JSON with these keys:
-{
-  "url": "a safe https URL to open first",
-  "summary": "one short sentence explaining what the browser will do"
-}
-
-Rules:
-- If the user gives a full URL, use it.
-- If the user asks to search, research, browse, or find something online, use a Google search URL.
-- Encode query parameters correctly.
-- Do not open external desktop browsers.`;
-
-      const responseText = await window.electron.gemmaChat(browserPrompt);
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      let targetUrl = `https://www.google.com/search?q=${encodeURIComponent(browserQuery)}`;
-      let summary = `Searching the web for "${browserQuery}".`;
-
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]) as { url?: string; summary?: string };
-        if (parsed.url && /^https:\/\//i.test(parsed.url)) {
-          targetUrl = parsed.url;
-        }
-        if (parsed.summary) {
-          summary = parsed.summary;
-        }
-      }
-
+    const explicitUrl = /^https?:\/\/\S+$/i.test(browserQuery);
+    const domainOnly = /^[\w.-]+\.[a-z]{2,}(?:\/\S*)?$/i.test(browserQuery);
+    if (explicitUrl || domainOnly) {
+      const targetUrl = explicitUrl ? browserQuery : `https://${browserQuery}`;
+      const summary = `Opening ${targetUrl}.`;
       loadAiHereUrl(targetUrl);
       setAiHereStatus(summary);
-      setBrowserSteps((prevSteps) => [
-        {
-          query: browserQuery,
+      setBrowserSteps((prevSteps) => [{ query: browserQuery, timestamp: actionTimestamp, targetUrl, summary }, ...prevSteps]);
+      return;
+    }
+
+    setWindowMode('aihere');
+    setClickyStatus('Researching the web...');
+    setAiHereStatus(`Understanding your goal and researching: “${browserQuery}”`);
+
+    try {
+      const response = await window.electron.claudeWebResearch(browserQuery);
+      if (response.success === false) throw new Error(response.error);
+
+      loadAiHereUrl(response.result.targetUrl);
+      setAiHereStatus(response.result.answer);
+      setBrowserSteps((prevSteps) => {
+        const taskSteps = response.result.tracks.map((track) => ({
+          query: track.task,
           timestamp: actionTimestamp,
-          targetUrl,
-          summary
-        },
-        ...prevSteps
-      ]);
+          targetUrl: track.targetUrl,
+          summary: track.answer,
+          kind: 'task' as const,
+        }));
+        const sourceSteps = response.result.sources.map((source) => ({
+          query: source.title,
+          timestamp: actionTimestamp,
+          targetUrl: source.url,
+          summary: `Source: ${source.url}`,
+          kind: 'source' as const,
+        }));
+        return [
+          {
+            query: browserQuery,
+            timestamp: actionTimestamp,
+            targetUrl: response.result.targetUrl,
+            summary: `Research completed using ${response.result.sources.length} source${response.result.sources.length === 1 ? '' : 's'}.`,
+            kind: 'summary' as const,
+          },
+          ...taskSteps,
+          ...sourceSteps,
+          ...prevSteps,
+        ];
+      });
+      speak(response.result.answer);
     } catch (err) {
-      console.error('AI Here browse planning failed:', err);
       const fallbackUrl = `https://www.google.com/search?q=${encodeURIComponent(browserQuery)}`;
       loadAiHereUrl(fallbackUrl);
-      setAiHereStatus(`Searching the web for "${browserQuery}".`);
-      setBrowserSteps((prevSteps) => [
-        {
-          query: browserQuery,
-          timestamp: actionTimestamp,
-          targetUrl: fallbackUrl,
-          summary: 'Loaded a fallback web search.'
-        },
-        ...prevSteps
-      ]);
+      setAiHereStatus(`The research agent could not finish: ${(err as Error).message}. Opened search results instead.`);
     } finally {
-      setIsAiLoading(false);
+      setClickyStatus('Idle');
     }
-  }, [loadAiHereUrl]);
+  }, [loadAiHereUrl, speak]);
 
   // --- AUTOMATED WINDOWS ACTIONS ---
   // Generates and runs PowerShell scripts to automate multi-step applications controls
@@ -641,7 +616,7 @@ Guidelines:
 
 Write the PowerShell script to accomplish: "${queryText}"`;
 
-      const responseText = await window.electron.gemmaChat(automationPrompt);
+      const responseText = await window.electron.claudeChat(automationPrompt);
       let powerShellScript = responseText.trim();
 
       // Clean markdown code blocks from the LLM response
@@ -687,37 +662,123 @@ Write the PowerShell script to accomplish: "${queryText}"`;
   }, [speak]);
 
   // --- NATIVE INTERFACE VISUAL GUIDANCE ---
-  // Hides the Inqora window, captures the desktop, gets target coordinates from Gemini Vision,
+  // Hides the Inqora window, captures the desktop, gets target coordinates from Claude Vision,
   // and displays a pointing arrow overlay on the screen to guide the user visually.
   const handleGuidance = useCallback(async (queryText: string) => {
+    setGuideSteps([]);
+    setScreenAnnotations([]);
+    setCurrentStepIndex(0);
     setGuideText("Scanning desktop contents...");
+    const guideScreenWidth = window.screen.width || window.innerWidth;
+    const guideScreenHeight = window.screen.height || window.innerHeight;
+    setArrowPos({
+      x: Math.round(guideScreenWidth * 0.14),
+      y: Math.round(guideScreenHeight * 0.72)
+    });
     try {
       // captureScreen handles window hiding and restoration automatically in main process
       const screenSnapshotData = await getScreenContext() || (await window.electron.captureScreen()).split(',')[1];
+      const screenshotDimensions = await getScreenshotDimensions(screenSnapshotData);
 
-      const visionSearchPrompt = `The user is looking for or wants to click: "${queryText}".
-Analyze this desktop screenshot and identify the exact location of the target UI element or text.
-Provide your response as a single, friendly instruction sentence guiding them, and include the coordinates of the target element in percentage values [x, y] (from 0 to 100) at the very end of your response.
-Example: "The Recycle Bin icon is at the top left. [4, 5]"`;
+      const visionSearchPrompt = `You are Blinky Guide, a visual teacher drawing over the user's current screen.
+The user's request is: "${queryText}".
 
-      const geminiResponse = await window.electron.geminiVision(visionSearchPrompt, screenSnapshotData);
+Analyze the screenshot. If this is a concept, diagram, slide, article, or video frame, explain it by connecting your explanation to the visible parts. If this is a simple locate/click request, highlight the exact target.
 
-      const coordinateMatch = geminiResponse.match(/\[(\d+),\s*(\d+)\]/);
+The screenshot is exactly ${screenshotDimensions.width} pixels wide by ${screenshotDimensions.height} pixels high. Locate visible edges and centers at native image resolution. Return integer pixel coordinates, not percentages and not values rounded to tens.
+
+Return 2-4 friendly explanatory sentences followed by exactly one JSON block:
+\`\`\`json
+{
+  "summary": "Short spoken explanation",
+  "coordinateSpace": {"unit":"pixels","width":${screenshotDimensions.width},"height":${screenshotDimensions.height}},
+  "annotations": [
+    {"id":"a1","type":"arrow","x1":192,"y1":216,"x2":672,"y2":432,"label":"What this arrow explains"},
+    {"id":"a2","type":"circle","x":1056,"y":486,"width":269,"height":130,"label":"Important visible area"}
+  ]
+}
+\`\`\`
+
+All coordinates and sizes must be image pixels within the declared coordinateSpace. Available types:
+- arrow or line: x1, y1, x2, y2, label
+- circle or box: x, y, width, height, label
+- label: x, y, label
+
+Use 2-6 annotations for explanations and 1-2 for simple pointing. Keep annotations away from the bottom 15% where the Blinky Guide controls appear. Only annotate things actually visible in the screenshot. For UI targets, put arrow endpoints at the exact visual center of the icon, text, or control and fit circles/boxes tightly to its visible edges.`;
+
+      const claudeResponse = await window.electron.claudeVision(visionSearchPrompt, screenSnapshotData);
+      let annotationPlan = parseScreenAnnotationPlan(
+        claudeResponse,
+        screenshotDimensions.width,
+        screenshotDimensions.height
+      );
+
+      if (annotationPlan) {
+        setGuideText('Verifying annotation alignment...');
+        const proposedPlan = claudeResponse.match(/```json\s*([\s\S]*?)\s*```/i)?.[1]
+          || JSON.stringify(annotationPlan);
+        const verificationPrompt = `You are a strict screen-annotation geometry verifier.
+The screenshot is ${screenshotDimensions.width} x ${screenshotDimensions.height} pixels.
+The proposed annotation plan is:
+${proposedPlan}
+
+Inspect the screenshot again and return ONLY a corrected JSON object using the same schema and pixel coordinateSpace.
+- Move every arrow endpoint to the exact center of the visible item it names.
+- Fit boxes tightly to visible edges with 4-10 pixels of padding.
+- Circles must surround a compact object; convert long line-shaped circles into arrows or tight boxes.
+- Remove any annotation whose claimed target is not clearly visible.
+- Do not start shapes in unrelated video margins, logos, subtitles, or empty space.
+- Keep labels short; label placement is handled by the renderer.
+- Preserve the explanation summary.`;
+        const verificationResponse = await window.electron.claudeVision(verificationPrompt, screenSnapshotData);
+        const verifiedPlan = parseScreenAnnotationPlan(
+          verificationResponse,
+          screenshotDimensions.width,
+          screenshotDimensions.height
+        );
+        if (verifiedPlan) {
+          annotationPlan = {
+            summary: verifiedPlan.summary || annotationPlan.summary,
+            annotations: verifiedPlan.annotations,
+          };
+        }
+      }
+
+      if (annotationPlan) {
+        setScreenAnnotations(annotationPlan.annotations);
+        const firstAnnotation = annotationPlan.annotations[0];
+        const firstTargetX = firstAnnotation.type === 'arrow' || firstAnnotation.type === 'line'
+          ? firstAnnotation.x2
+          : firstAnnotation.x;
+        const firstTargetY = firstAnnotation.type === 'arrow' || firstAnnotation.type === 'line'
+          ? firstAnnotation.y2
+          : firstAnnotation.y;
+        setArrowPos({
+          x: ((firstTargetX ?? 50) / 100) * window.screen.width,
+          y: ((firstTargetY ?? 40) / 100) * window.screen.height
+        });
+        const explanation = annotationPlan.summary || claudeResponse.replace(/```json[\s\S]*?```/i, '').trim();
+        setGuideText(explanation);
+        speak(explanation);
+        return;
+      }
+
+      const coordinateMatch = claudeResponse.match(/\[(\d+),\s*(\d+)\]/);
       if (coordinateMatch) {
         const xPercentCoordinate = parseInt(coordinateMatch[1]);
         const yPercentCoordinate = parseInt(coordinateMatch[2]);
 
         // Position the arrow overlay relative to the viewport size (which is full-screen in Guide Mode)
         setArrowPos({
-          x: (xPercentCoordinate / 100) * window.innerWidth,
-          y: (yPercentCoordinate / 100) * window.innerHeight
+          x: (xPercentCoordinate / 100) * window.screen.width,
+          y: (yPercentCoordinate / 100) * window.screen.height
         });
       } else {
         // Fallback arrow placement if coordinate detection fails
-        setArrowPos({ x: window.innerWidth / 2, y: 150 });
+        setArrowPos({ x: window.screen.width / 2, y: 150 });
       }
 
-      const guidanceDescription = geminiResponse.replace(/\[\d+,\s*\d+\]/, '').trim();
+      const guidanceDescription = claudeResponse.replace(/\[\d+,\s*\d+\]/, '').trim();
       setGuideText(guidanceDescription);
       speak(guidanceDescription);
     } catch (err) {
@@ -744,11 +805,12 @@ Select exactly one category:
 - BROWSER: The user wants to search, research, browse, open a URL, create a browser, find online results, or use the web (e.g., "open a browser and search cat videos", "search web for GST updates", "go to https://example.com").
 - AUTOMATION: The user wants to open/launch a local desktop app and do something, type text, or run automated desktop keyboard/mouse interactions (e.g., "open notepad and type hello", "run calc and do 5+5").
 - GUIDANCE: The user wants to locate, find, click, or see a pointing direction to a visual UI element, button, window, or icon on their current desktop (e.g., "where is the recycle bin", "how do I click settings", "point to the file menu", "where is Chrome").
+- GUIDANCE also includes visual teaching requests about current on-screen study material, diagrams, slides, articles, or videos (e.g., "annotate this diagram", "explain this YouTube frame on screen", "draw arrows to show this concept", "show how these parts connect").
 - CONVERSATION: A general chat question, reflection, help, welcome greeting, or non-automation query (e.g., "what is the capital of France?", "explain photosynthesis", "who are you").
 
 Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do not write punctuation, markdown, or any other explanations.`;
 
-      const classificationResult = await window.electron.gemmaChat(intentClassificationPrompt);
+      const classificationResult = await window.electron.claudeChat(intentClassificationPrompt);
       const classifiedIntent = classificationResult.trim().toUpperCase();
       console.log('Query intent classified as:', classifiedIntent);
 
@@ -776,9 +838,18 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
     handleQuerySubmit(speechText);
   }, [handleQuerySubmit]);
 
-  // MediaRecorder Ref for fallback audio stream recording
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  useEffect(() => {
+    if (!isVoiceTypingFallback || !inputValue.trim()) return;
+    setVoiceInputStatus(`Heard: "${inputValue}" - waiting for you to finish...`);
+    const pauseTimer = window.setTimeout(() => {
+      const transcript = inputValue.trim();
+      setIsVoiceTypingFallback(false);
+      setIsListening(false);
+      setVoiceInputStatus(`Heard: "${transcript}" - processing...`);
+      handleSpeechInput(transcript);
+    }, 2500);
+    return () => window.clearTimeout(pauseTimer);
+  }, [inputValue, isVoiceTypingFallback, handleSpeechInput]);
 
   // Speech Recognition Web API configuration
   useEffect(() => {
@@ -807,7 +878,7 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         rec.onerror = (event: any) => {
-          console.warn('Speech recognition warning (using MediaRecorder fallback):', event.error);
+          console.warn('Browser speech recognition warning:', event.error);
           setIsListening(false);
         };
 
@@ -828,51 +899,69 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
 
   const toggleListening = async () => {
     if (isListening) {
+      window.electron.cancelSpeechRecognition();
+      setIsVoiceTypingFallback(false);
       // Stop Web Speech API if active
       if (recognitionRef.current) {
         try { recognitionRef.current.stop(); } catch { /* ignore */ }
       }
-      // Stop native MediaRecorder stream if active
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        try { mediaRecorderRef.current.stop(); } catch { /* ignore */ }
-      }
       setIsListening(false);
+      setVoiceInputStatus('Listening cancelled.');
       setClickyStatus('Idle');
     } else {
       setIsListening(true);
+      setVoiceInputStatus('Listening… Speak now, then pause.');
       setClickyStatus('Listening...');
 
-      // 1. Try native getUserMedia & MediaRecorder audio recording
-      try {
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          const mediaRecorder = new MediaRecorder(stream);
-          audioChunksRef.current = [];
-
-          mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) audioChunksRef.current.push(event.data);
-          };
-
-          mediaRecorder.onstop = () => {
-            stream.getTracks().forEach((track) => track.stop());
-            setIsListening(false);
-            setClickyStatus('Idle');
-          };
-
-          mediaRecorder.start();
-          mediaRecorderRef.current = mediaRecorder;
+      if (window.electron.platform === 'win32') {
+        let usingVoiceTyping = false;
+        try {
+          const result = await window.electron.transcribeSpeech();
+          if (result.success) {
+            setInputValue(result.text);
+            setVoiceInputStatus(`Heard: “${result.text}” — processing…`);
+            setClickyStatus('Understanding...');
+            handleSpeechInput(result.text);
+          } else if ('error' in result) {
+            setInputValue('');
+            setVoiceInputStatus('Opening Windows Voice Typing...');
+            document.querySelector<HTMLInputElement>('[data-testid="chat-composer"] input')?.focus();
+            const fallback = await window.electron.startWindowsVoiceTyping();
+            if (fallback.success) {
+              usingVoiceTyping = true;
+              setIsVoiceTypingFallback(true);
+              setVoiceInputStatus('Listening with Windows Voice Typing...');
+            } else {
+              const fallbackError = fallback.error || result.error;
+              setVoiceInputStatus(fallbackError);
+              setClickyStatus(fallbackError);
+              setIsListening(false);
+            }
+          }
+        } catch (speechError) {
+          console.error('Windows speech recognition failed:', speechError);
+          setVoiceInputStatus('Speech recognition failed. Restart Blinky and try again.');
+          setClickyStatus('Speech recognition failed. Please try again.');
+        } finally {
+          if (!usingVoiceTyping) setIsListening(false);
         }
-      } catch (micErr) {
-        console.warn("MediaRecorder mic access error:", micErr);
+        return;
       }
 
-      // 2. Try Web Speech API recognition asynchronously without crashing
+      // Use the browser speech API on non-Windows platforms.
       if (recognitionRef.current) {
         try {
           recognitionRef.current.start();
         } catch (speechErr) {
           console.warn("Web Speech start warning:", speechErr);
+          setIsListening(false);
+          setVoiceInputStatus('Speech recognition is unavailable.');
+          setClickyStatus('Speech recognition is unavailable.');
         }
+      } else {
+        setIsListening(false);
+        setVoiceInputStatus('Speech recognition is unavailable.');
+        setClickyStatus('Speech recognition is unavailable.');
       }
     }
   };
@@ -881,7 +970,7 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
   useEffect(() => {
     const fetchGreeting = async () => {
       try {
-        const greeting = await window.electron.geminiChat("Write a very short, friendly 1-sentence welcome message for a desktop AI assistant called Blinky.");
+        const greeting = await window.electron.claudeChat("Write a very short, friendly 1-sentence welcome message for a desktop AI assistant called Blinky.");
         setAiResponse(greeting);
       } catch (err) {
         console.error('Failed to fetch initial greeting:', err);
@@ -927,7 +1016,9 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
   };
 
   const handleMouseLeave = () => {
-    if (isGuideMode || clickThrough) {
+    if (windowMode === 'aihere' || isRegionSelecting) {
+      window.electron.setIgnoreMouseEvents(false);
+    } else if (isGuideMode || clickThrough) {
       window.electron.setIgnoreMouseEvents(true, { forward: true });
     } else {
       window.electron.setIgnoreMouseEvents(false);
@@ -958,6 +1049,7 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
         guideInput={inputValue}
         setGuideInput={setInputValue}
         handleGuideQuerySubmit={handleQuerySubmit}
+        screenAnnotations={screenAnnotations}
       />
 
       <div
@@ -989,8 +1081,8 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
             cursorColor={cursorColor}
             setCursorColor={setCursorColor}
             startRegionSelection={startRegionSelection}
-            isFocusMode={isFocusMode}
-            setIsFocusMode={setIsFocusMode}
+            isListening={isListening}
+            toggleListening={toggleListening}
           />
         )}
 
@@ -1003,6 +1095,13 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
         {windowMode !== 'toolbar' && windowMode !== 'aihere' && windowMode !== 'logo' && (
           <AssistantPanel
             showPanel={showPanel}
+            onQuit={() => {
+              // The preload bridge is loaded only when Electron starts. Keep a native
+              // window-close fallback so this still works after renderer hot reloads
+              // or when an older packaged preload is running.
+              window.electron?.quitApp?.();
+              window.setTimeout(() => window.close(), 100);
+            }}
             activeTab={activeTab}
             takeManualScreenshot={takeManualScreenshot}
             isAiLoading={isAiLoading}
@@ -1015,6 +1114,7 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
             speechSupported={speechSupported}
             isListening={isListening}
             toggleListening={toggleListening}
+            voiceInputStatus={voiceInputStatus}
             inputValue={inputValue}
             setInputValue={setInputValue}
             handleQuerySubmit={handleQuerySubmit}
@@ -1038,20 +1138,14 @@ Respond with ONLY one word: BROWSER, AUTOMATION, GUIDANCE, or CONVERSATION. Do n
         {/* 2. Embedded AI Here browser and voice companion overlay */}
         {windowMode === 'aihere' && (
           <AIHereBrowser
-            webviewRef={webviewRef}
             currentUrl={currentUrl}
-            canGoBack={canGoBack}
-            canGoForward={canGoForward}
-            handleWebviewBack={handleWebviewBack}
-            handleWebviewForward={handleWebviewForward}
-            handleWebviewReload={handleWebviewReload}
             aiHerePrompt={aiHerePrompt}
             setAiHerePrompt={setAiHerePrompt}
             handleAiHereBrowse={handleAiHereBrowse}
+            openUrl={loadAiHereUrl}
             speechSupported={speechSupported}
             isListening={isListening}
             toggleListening={toggleListening}
-            webviewLoading={webviewLoading}
             aiHereStatus={aiHereStatus}
             browserSteps={browserSteps}
             executionLogs={executionLogs}

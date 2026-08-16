@@ -43,8 +43,8 @@ interface TopControlBarProps {
   cursorColor: 'cyan' | 'purple' | 'green' | 'orange' | 'gold';
   setCursorColor: (color: 'cyan' | 'purple' | 'green' | 'orange' | 'gold') => void;
   startRegionSelection: () => void;
-  isFocusMode?: boolean;
-  setIsFocusMode?: (val: boolean) => void;
+  isListening: boolean;
+  toggleListening: () => void;
 }
 
 /**
@@ -72,8 +72,8 @@ export function TopControlBar({
   cursorColor,
   setCursorColor,
   startRegionSelection,
-  isFocusMode,
-  setIsFocusMode
+  isListening,
+  toggleListening
 }: TopControlBarProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
 
@@ -94,19 +94,18 @@ export function TopControlBar({
 
       <div className="h-4 w-px bg-white/15 mx-0.5" />
 
-      {/* Focus Mode Quick Toggle */}
-      {setIsFocusMode && (
-        <Button
-          variant={isFocusMode ? "cyan" : "ghost"}
-          size="icon"
-          className="h-7 w-7 rounded-lg"
-          onClick={() => setIsFocusMode(!isFocusMode)}
-          onMouseEnter={() => window.electron?.setIgnoreMouseEvents(false)}
-          title={isFocusMode ? "Exit Focus Mode" : "Enter Speakable Focus Bar Mode"}
-        >
-          <Mic size={13} />
-        </Button>
-      )}
+      {/* Global voice input */}
+      <Button
+        variant={isListening ? "cyan" : "ghost"}
+        size="icon"
+        className={`h-7 w-7 rounded-lg ${isListening ? 'animate-pulse ring-2 ring-cyan-400/40' : ''}`}
+        onClick={toggleListening}
+        onMouseEnter={() => window.electron?.setIgnoreMouseEvents(false)}
+        title={isListening ? "Stop listening" : "Speak to Blinky"}
+        aria-label={isListening ? "Stop listening" : "Speak to Blinky"}
+      >
+        <Mic size={13} />
+      </Button>
 
       {/* Tabs directing layout and operation modes */}
       <div className="flex gap-1 bg-white/5 p-1 rounded-xl border border-white/10">
@@ -142,7 +141,10 @@ export function TopControlBar({
           variant={windowMode === 'aihere' ? "default" : "ghost"}
           size="xs"
           className="h-6 px-2 text-[11px] gap-1.5"
-          onClick={() => setWindowMode('aihere')}
+          onClick={() => {
+            setClickThrough(false);
+            setWindowMode('aihere');
+          }}
           onMouseEnter={() => window.electron?.setIgnoreMouseEvents(false)}
           title="AI Here Browser"
         >
@@ -243,7 +245,7 @@ export function TopControlBar({
         </Button>
 
         {/* Cursor Color Theme Selector */}
-        <div className="relative">
+        <div className="toolbar-color-control">
           <Button
             variant="ghost"
             size="icon"
@@ -255,10 +257,11 @@ export function TopControlBar({
           </Button>
 
           {showColorPicker && (
-            <div className="absolute top-9 right-0 bg-black/95 border border-white/20 rounded-xl p-2 flex gap-2 z-50 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="toolbar-color-picker" aria-label="Cursor colors">
               {(['cyan', 'purple', 'green', 'orange', 'gold'] as const).map((color) => (
-                <div
+                <button
                   key={color}
+                  type="button"
                   className={`w-4 h-4 rounded-full cursor-pointer transition-all duration-200 hover:scale-125 ${
                     cursorColor === color ? 'ring-2 ring-white scale-110 shadow-lg' : 'opacity-80'
                   }`}
@@ -273,6 +276,7 @@ export function TopControlBar({
                     setCursorColor(color);
                     setShowColorPicker(false);
                   }}
+                  aria-label={`Use ${color} cursor color`}
                   title={`Select ${color} aura`}
                 />
               ))}

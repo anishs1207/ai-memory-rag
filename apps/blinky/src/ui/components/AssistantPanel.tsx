@@ -21,7 +21,8 @@ import {
   Image as ImageIcon,
   Bot,
   User,
-  AlertCircle
+  AlertCircle,
+  X
 } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import type { HistoryItem, ChatMessage } from '../types';
@@ -32,6 +33,7 @@ import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 
 interface AssistantPanelProps {
   showPanel: boolean;
+  onQuit: () => void;
   activeTab: 'assist' | 'search';
   takeManualScreenshot: () => void;
   isAiLoading: boolean;
@@ -44,6 +46,7 @@ interface AssistantPanelProps {
   speechSupported: boolean;
   isListening: boolean;
   toggleListening: () => void;
+  voiceInputStatus: string;
   inputValue: string;
   setInputValue: (val: string) => void;
   handleQuerySubmit: () => void;
@@ -69,6 +72,7 @@ interface AssistantPanelProps {
  */
 export function AssistantPanel({
   showPanel,
+  onQuit,
   activeTab,
   takeManualScreenshot,
   isAiLoading,
@@ -81,6 +85,7 @@ export function AssistantPanel({
   speechSupported,
   isListening,
   toggleListening,
+  voiceInputStatus,
   inputValue,
   setInputValue,
   handleQuerySubmit,
@@ -179,14 +184,14 @@ export function AssistantPanel({
           initial={{ opacity: 0, y: -10, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -10, scale: 0.98 }}
-          className="assistant-panel w-full max-w-3xl pointer-events-auto"
+          className="assistant-panel w-full max-w-3xl max-h-[calc(100vh-84px)] min-h-0 flex-1 pointer-events-auto"
         >
           <Card
-            className="backdrop-blur-2xl border-white/15 shadow-2xl shadow-black overflow-hidden transition-colors duration-300"
+            className="h-full min-h-0 flex flex-col backdrop-blur-2xl border-white/15 shadow-2xl shadow-black overflow-hidden transition-colors duration-300"
             style={{ backgroundColor: `rgba(10, 10, 18, ${bgOpacity})` }}
           >
             {/* Header containing title, voice mute, and manual screenshot controls */}
-            <CardHeader className="flex flex-row items-center justify-between p-3.5 pb-3 border-b border-white/10">
+            <CardHeader className="shrink-0 flex flex-row items-center justify-between p-3.5 pb-3 border-b border-white/10">
               <CardTitle className="text-xs font-bold text-white flex items-center gap-2">
                 {activeTab === 'search' ? <Search size={14} className="text-purple-400" /> : <Sparkles size={14} className="text-cyan-400" />}
                 <span>
@@ -214,6 +219,17 @@ export function AssistantPanel({
                 >
                   <Camera size={12} className="text-cyan-400" />
                   <span>Capture Context</span>
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-white/60 hover:bg-red-500/15 hover:text-red-300"
+                  onClick={onQuit}
+                  title="Quit Blinky"
+                  aria-label="Quit Blinky"
+                >
+                  <X size={14} />
                 </Button>
               </div>
             </CardHeader>
@@ -243,12 +259,14 @@ export function AssistantPanel({
               </div>
             )}
 
-            <CardContent className="p-4 space-y-4">
-              {/* Chat Thread Container */}
+            <CardContent className="flex flex-1 min-h-0 flex-col gap-4 p-4">
+              {/* Scrollable conversation and contextual controls */}
               <div
                 ref={chatScrollRef}
-                className="min-h-[120px] max-h-[300px] overflow-y-auto pr-2 space-y-3 scrollbar-thin"
+                className="flex-1 min-h-0 overflow-y-auto pr-2 space-y-4 scrollbar-thin"
               >
+              {/* Chat Thread Container */}
+              <div className="min-h-[120px] space-y-3">
                 {isGuideMode ? (
                   <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-xl text-xs text-purple-200 flex items-center gap-2">
                     <Navigation size={14} className="text-purple-400" />
@@ -505,9 +523,24 @@ export function AssistantPanel({
                   </div>
                 </div>
               )}
+              </div>
+
+              {voiceInputStatus && (
+                <div
+                  className={`shrink-0 rounded-lg border px-3 py-2 text-[11px] ${
+                    isListening
+                      ? 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200 animate-pulse'
+                      : 'border-white/10 bg-white/5 text-white/70'
+                  }`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {voiceInputStatus}
+                </div>
+              )}
 
               {/* Text and voice input submission controllers */}
-              <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+              <div data-testid="chat-composer" className="shrink-0 flex items-center gap-2 pt-2 border-t border-white/10">
                 {speechSupported && (
                   <Button
                     variant={isListening ? "destructive" : "cyan"}

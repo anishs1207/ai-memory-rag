@@ -17,9 +17,20 @@ contextBridge.exposeInMainWorld('electron', {
   setWindowSize: (width: number, height: number) => ipcRenderer.send('set-window-size', width, height),
   setIgnoreMouseEvents: (ignore: boolean, options?: { forward: boolean }) => ipcRenderer.send('set-ignore-mouse-events', ignore, options),
   setFullScreen: (full: boolean) => ipcRenderer.send('set-full-screen', full),
-  geminiChat: (prompt: string) => ipcRenderer.invoke('gemini-chat', prompt),
-  gemmaChat: (prompt: string) => ipcRenderer.invoke('gemma-chat', prompt),
-  geminiVision: (prompt: string, base64Image: string) => ipcRenderer.invoke('gemini-vision', prompt, base64Image),
+  quitApp: () => ipcRenderer.send('quit-app'),
+  claudeChat: (prompt: string) => ipcRenderer.invoke('claude-chat', prompt),
+  claudeVision: (prompt: string, base64Image: string) => ipcRenderer.invoke('claude-vision', prompt, base64Image),
+  claudeWebResearch: (goal: string) => ipcRenderer.invoke('claude-web-research', goal),
+  listSiteCredentials: () => ipcRenderer.invoke('credentials-list'),
+  saveSiteCredential: (credential: { domain: string; username: string; password: string; autoFill: boolean }) => ipcRenderer.invoke('credentials-save', credential),
+  deleteSiteCredential: (domain: string) => ipcRenderer.invoke('credentials-delete', domain),
+  applySiteCredential: (webContentsId: number, pageUrl: string) => ipcRenderer.invoke('credentials-apply', webContentsId, pageUrl),
+  getRuntimeSnapshot: () => ipcRenderer.invoke('runtime-snapshot'),
+  dispatchTaskCommand: (command: unknown) => ipcRenderer.invoke('runtime-dispatch', command),
+  requestTaskApproval: (taskId: string, approval: unknown) => ipcRenderer.invoke('runtime-request-approval', taskId, approval),
+  transcribeSpeech: () => ipcRenderer.invoke('transcribe-windows-speech'),
+  startWindowsVoiceTyping: () => ipcRenderer.invoke('start-windows-voice-typing'),
+  cancelSpeechRecognition: () => ipcRenderer.send('cancel-windows-speech'),
   captureScreen: () => ipcRenderer.invoke('capture-screen'),
   setContentProtection: (protect: boolean) => ipcRenderer.send('set-content-protection', protect),
   // Expose system execution capabilities safely to launch apps (e.g. Chrome, Notepad)
@@ -30,4 +41,3 @@ contextBridge.exposeInMainWorld('electron', {
   loadChatHistory: () => ipcRenderer.invoke('load-chat-history'),
   clearChatHistory: () => ipcRenderer.invoke('clear-chat-history'),
 });
-

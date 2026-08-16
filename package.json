@@ -22,7 +22,10 @@
   },
   "packageManager": "npm@10.8.2",
   "workspaces": [
-    "apps/*",
+    "apps/blinky",
+    "apps/mobile-app",
+    "apps/server",
+    "apps/web",
     "packages/*"
   ],
   "dependencies": {

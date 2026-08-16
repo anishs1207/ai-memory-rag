@@ -1,19 +1,158 @@
 import { app, BrowserWindow, ipcMain, desktopCapturer, screen, session } from 'electron';
 import { getPreloadPath, getUIPath } from './pathResolver.js';
 import { isDev } from './utils.js';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import * as dotenv from 'dotenv';
+import { loadBlinkyEnvironment } from './environment.js';
+import { detectImageMediaType, type ClaudeImageMediaType } from './imageMediaType.js';
+import { researchWeb } from './webResearchAgent.js';
+import { applySiteCredential, deleteSiteCredential, listSiteCredentials, saveSiteCredential, type SiteCredentialInput } from './credentialVault.js';
+import { addTaskApproval, dispatchTaskCommand, getRuntimeSnapshot, type TaskCommand } from './taskRuntime.js';
 import path from 'path';
-import { exec } from 'child_process';
+import { exec, spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import fs from 'fs';
 
-dotenv.config({ path: path.join(process.cwd(), '.env') });
+loadBlinkyEnvironment();
 
-// Use gemini-2.5-flash as the primary text and multimodal vision model.
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const ANTHROPIC_MESSAGES_URL = 'https://api.anthropic.com/v1/messages';
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-5';
 
-const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-const gemmaModel = model;
+type SpeechTranscriptionResult =
+  | { success: true; text: string; confidence: number }
+  | { success: false; error: string };
+
+let speechRecognitionProcess: ChildProcessWithoutNullStreams | null = null;
+
+function transcribeWindowsSpeech(): Promise<SpeechTranscriptionResult> {
+  if (process.platform !== 'win32') {
+    return Promise.resolve({ success: false, error: 'Native speech recognition is only available on Windows.' });
+  }
+  if (speechRecognitionProcess) {
+    return Promise.resolve({ success: false, error: 'Blinky is already listening.' });
+  }
+
+  const script = String.raw`
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Speech
+$installed = [System.Speech.Recognition.SpeechRecognitionEngine]::InstalledRecognizers()
+if ($installed.Count -eq 0) { throw 'No Windows speech recognizer is installed.' }
+$recognizer = New-Object System.Speech.Recognition.SpeechRecognitionEngine
+try {
+  $recognizer.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar))
+  $recognizer.SetInputToDefaultAudioDevice()
+  $result = $recognizer.Recognize([TimeSpan]::FromSeconds(12))
+  if ($null -eq $result) {
+    @{ success = $false; error = 'I could not hear any speech. Please try again.' } | ConvertTo-Json -Compress
+  } else {
+    @{ success = $true; text = $result.Text; confidence = $result.Confidence } | ConvertTo-Json -Compress
+  }
+} finally {
+  $recognizer.Dispose()
+}`;
+  const encodedScript = Buffer.from(script, 'utf16le').toString('base64');
+
+  return new Promise((resolve) => {
+    const child = spawn('powershell.exe', [
+      '-NoProfile',
+      '-NonInteractive',
+      '-ExecutionPolicy', 'Bypass',
+      '-EncodedCommand', encodedScript,
+    ], { windowsHide: true });
+    speechRecognitionProcess = child;
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => { stdout += chunk; });
+    child.stderr.on('data', (chunk: string) => { stderr += chunk; });
+    child.on('error', (error) => {
+      speechRecognitionProcess = null;
+      resolve({ success: false, error: `Could not start speech recognition: ${error.message}` });
+    });
+    child.on('close', (exitCode) => {
+      if (speechRecognitionProcess === child) speechRecognitionProcess = null;
+      if (exitCode !== 0) {
+        resolve({ success: false, error: stderr.trim() || 'Windows speech recognition failed.' });
+        return;
+      }
+      try {
+        const jsonLine = stdout.trim().split(/\r?\n/).at(-1);
+        if (!jsonLine) throw new Error('Speech recognizer returned no result.');
+        resolve(JSON.parse(jsonLine) as SpeechTranscriptionResult);
+      } catch (error) {
+        resolve({ success: false, error: (error as Error).message });
+      }
+    });
+  });
+}
+
+function startWindowsVoiceTyping(): Promise<{ success: boolean; error?: string }> {
+  if (process.platform !== 'win32') return Promise.resolve({ success: false, error: 'Windows Voice Typing is unavailable.' });
+  const script = String.raw`
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class BlinkyKeyboard {
+  [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
+}
+'@
+[BlinkyKeyboard]::keybd_event(0x5B, 0, 0, [UIntPtr]::Zero)
+[BlinkyKeyboard]::keybd_event(0x48, 0, 0, [UIntPtr]::Zero)
+Start-Sleep -Milliseconds 80
+[BlinkyKeyboard]::keybd_event(0x48, 0, 2, [UIntPtr]::Zero)
+[BlinkyKeyboard]::keybd_event(0x5B, 0, 2, [UIntPtr]::Zero)`;
+  const encodedScript = Buffer.from(script, 'utf16le').toString('base64');
+  return new Promise((resolve) => {
+    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encodedScript], { windowsHide: true });
+    let stderr = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => { stderr += chunk; });
+    child.on('error', (error) => resolve({ success: false, error: error.message }));
+    child.on('close', (code) => resolve(code === 0 ? { success: true } : { success: false, error: stderr.trim() || 'Could not open Windows Voice Typing.' }));
+  });
+}
+
+type ClaudeContent =
+  | { type: 'text'; text: string }
+  | { type: 'image'; source: { type: 'base64'; media_type: ClaudeImageMediaType; data: string } };
+
+interface ClaudeResponse {
+  content?: Array<{ type: string; text?: string }>;
+  error?: { message?: string };
+}
+
+async function callClaude(content: ClaudeContent[]): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error('ANTHROPIC_API_KEY is missing. Add it to apps/blinky/.env.');
+  }
+
+  const response = await fetch(ANTHROPIC_MESSAGES_URL, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 4096,
+      messages: [{ role: 'user', content }],
+    }),
+  });
+
+  const payload = await response.json() as ClaudeResponse;
+  if (!response.ok) {
+    throw new Error(payload.error?.message || `Anthropic API returned ${response.status}`);
+  }
+
+  const text = payload.content
+    ?.filter((block) => block.type === 'text' && block.text)
+    .map((block) => block.text)
+    .join('\n')
+    .trim();
+
+  if (!text) throw new Error('Claude returned no text content.');
+  return text;
+}
 
 interface HistoryItem {
   id: string;
@@ -119,42 +258,60 @@ function createWindow() {
     }
   });
 
-  // Handle Gemini API
-  ipcMain.handle('gemini-chat', async (_, prompt: string) => {
+  // Handle Claude text and multimodal requests in the privileged main process.
+  ipcMain.handle('claude-chat', async (_, prompt: string) => {
     try {
-      const result = await model.generateContent(prompt);
-      return result.response.text();
+      return await callClaude([{ type: 'text', text: prompt }]);
     } catch (err) {
-      console.error('Gemma API Error:', err);
-      return 'Error calling Gemma API';
+      console.error('Claude API Error:', err);
+      return `Error calling Claude API: ${(err as Error).message}`;
     }
   });
 
-  ipcMain.handle('gemma-chat', async (_, prompt: string) => {
+  ipcMain.handle('claude-vision', async (_, prompt: string, base64Image: string) => {
     try {
-      const result = await gemmaModel.generateContent(prompt);
-      return result.response.text();
-    } catch (err) {
-      console.error('Gemma API Error:', err);
-      return 'Error calling Gemma API';
-    }
-  });
-
-  ipcMain.handle('gemini-vision', async (_, prompt: string, base64Image: string) => {
-    try {
-      const result = await model.generateContent([
-        prompt,
+      return await callClaude([
         {
-          inlineData: {
-            mimeType: 'image/jpeg',
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: detectImageMediaType(base64Image),
             data: base64Image,
           },
         },
+        { type: 'text', text: prompt },
       ]);
-      return result.response.text();
     } catch (err) {
-      console.error('Gemma Vision Error:', err);
-      return 'Error calling Gemma Vision API';
+      console.error('Claude Vision Error:', err);
+      return `Error calling Claude Vision API: ${(err as Error).message}`;
+    }
+  });
+
+  ipcMain.handle('claude-web-research', async (_, goal: string) => {
+    try {
+      return { success: true, result: await researchWeb(goal) };
+    } catch (err) {
+      console.error('Claude Web Agent Error:', err);
+      return { success: false, error: (err as Error).message };
+    }
+  });
+
+  ipcMain.handle('credentials-list', () => listSiteCredentials());
+  ipcMain.handle('credentials-save', (_, credential: SiteCredentialInput) => saveSiteCredential(credential));
+  ipcMain.handle('credentials-delete', (_, domain: string) => deleteSiteCredential(domain));
+  ipcMain.handle('credentials-apply', (_, webContentsId: number, pageUrl: string) =>
+    applySiteCredential(webContentsId, pageUrl)
+  );
+  ipcMain.handle('runtime-snapshot', () => getRuntimeSnapshot());
+  ipcMain.handle('runtime-dispatch', (_, command: TaskCommand) => dispatchTaskCommand(command));
+  ipcMain.handle('runtime-request-approval', (_, taskId: string, approval) => addTaskApproval(taskId, approval));
+
+  ipcMain.handle('transcribe-windows-speech', () => transcribeWindowsSpeech());
+  ipcMain.handle('start-windows-voice-typing', () => startWindowsVoiceTyping());
+  ipcMain.on('cancel-windows-speech', () => {
+    if (speechRecognitionProcess) {
+      speechRecognitionProcess.kill();
+      speechRecognitionProcess = null;
     }
   });
 
@@ -382,6 +539,10 @@ function createWindow() {
     }
   });
 }
+
+ipcMain.on('quit-app', () => {
+  app.quit();
+});
 
 app.on('ready', createWindow);
 

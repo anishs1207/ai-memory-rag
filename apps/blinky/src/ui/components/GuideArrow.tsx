@@ -1,10 +1,12 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Minimize2, ChevronLeft, ChevronRight, Volume2, Crop, Sparkles, Mic, Play } from 'lucide-react';
+import { Minimize2, ChevronLeft, ChevronRight, Volume2, Crop, Sparkles, Mic, Play, MousePointer2 } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
+import { ScreenAnnotationOverlay } from './ScreenAnnotationOverlay';
+import type { ScreenAnnotation } from '../screenAnnotations';
 
 export interface GuideStep {
   stepNumber: number;
@@ -38,10 +40,11 @@ interface GuideArrowProps {
   guideInput?: string;
   setGuideInput?: (val: string) => void;
   handleGuideQuerySubmit?: (prompt?: string) => void;
+  screenAnnotations?: ScreenAnnotation[];
 }
 
 /**
- * GuideArrow displays the shiny animated Clicky cursor aura, target reticles,
+ * GuideArrow displays the shiny animated Blinky cursor aura, target reticles,
  * multi-step walkthrough controller bar, and interactive screen region circling canvas.
  */
 export function GuideArrow({
@@ -63,7 +66,8 @@ export function GuideArrow({
   toggleListening,
   guideInput = '',
   setGuideInput,
-  handleGuideQuerySubmit
+  handleGuideQuerySubmit,
+  screenAnnotations = []
 }: GuideArrowProps) {
   // Drag selection state for region circling tool
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
@@ -75,6 +79,16 @@ export function GuideArrow({
   const targetY = activeStep ? activeStep.y : arrowPos.y;
   const stepText = activeStep ? activeStep.description : guideText;
   const annotationType = activeStep?.annotationType || 'circle';
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+  const clampedTargetX = Math.min(Math.max(targetX, 44), viewportWidth - 44);
+  const clampedTargetY = Math.min(Math.max(targetY, 44), viewportHeight - 110);
+  const entryX = clampedTargetX > viewportWidth / 2 ? 72 : viewportWidth - 72;
+  const entryY = Math.min(viewportHeight * 0.72, viewportHeight - 140);
+  const bubbleAlignment = [
+    clampedTargetX > viewportWidth - 360 ? 'align-left' : '',
+    clampedTargetY > viewportHeight - 250 ? 'align-up' : ''
+  ].filter(Boolean).join(' ');
 
   // Explicit Mouse Event handlers to ensure Electron window allows clicks on the guide bar
   const handleMouseEnterBar = () => {
@@ -84,7 +98,7 @@ export function GuideArrow({
   };
 
   const handleMouseLeaveBar = () => {
-    if (typeof window !== 'undefined' && window.electron?.setIgnoreMouseEvents && isGuideMode) {
+    if (typeof window !== 'undefined' && window.electron?.setIgnoreMouseEvents && isGuideMode && !isRegionSelecting) {
       window.electron.setIgnoreMouseEvents(true, { forward: true });
     }
   };
@@ -175,7 +189,11 @@ export function GuideArrow({
         </div>
       )}
 
-      {/* 2. Shiny Clicky Cursor Aura & Target Reticle */}
+      {/* 2. Shiny Blinky Cursor Aura & Target Reticle */}
+      {isGuideMode && screenAnnotations.length > 0 && (
+        <ScreenAnnotationOverlay annotations={screenAnnotations} />
+      )}
+
       <AnimatePresence>
         {isGuideMode && targetX !== -100 && (
           <>
@@ -183,7 +201,7 @@ export function GuideArrow({
             {(annotationType === 'circle' || annotationType === 'arrow') && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 1, scale: 1, left: targetX, top: targetY }}
+                animate={{ opacity: 1, left: clampedTargetX, top: clampedTargetY }}
                 exit={{ opacity: 0, scale: 0.5 }}
                 className="guide-target-reticle"
               />
@@ -196,8 +214,8 @@ export function GuideArrow({
                 animate={{
                   opacity: 1,
                   scale: 1,
-                  left: targetX - (activeStep?.boxWidth || 100) / 2,
-                  top: targetY - (activeStep?.boxHeight || 60) / 2,
+                  left: clampedTargetX - (activeStep?.boxWidth || 100) / 2,
+                  top: clampedTargetY - (activeStep?.boxHeight || 60) / 2,
                   width: activeStep?.boxWidth || 100,
                   height: activeStep?.boxHeight || 60
                 }}
@@ -206,32 +224,40 @@ export function GuideArrow({
               />
             )}
 
-            {/* Shiny Animated Cursor Aura */}
+            {/* Persistent pointer: outer layer travels; inner layer pulses independently. */}
             <motion.div
-              initial={{ opacity: 0, scale: 0 }}
+              initial={{ opacity: 0, left: entryX, top: entryY }}
               animate={{
                 opacity: 1,
-                scale: 1,
-                left: targetX - 12,
-                top: targetY - 12
+                left: clampedTargetX - 18,
+                top: clampedTargetY - 18
               }}
-              transition={{ type: "spring", stiffness: 120, damping: 20 }}
-              exit={{ opacity: 0, scale: 0 }}
-              className="shiny-guide-cursor"
+              transition={{ duration: 1.15, ease: [0.16, 1, 0.3, 1] }}
+              exit={{ opacity: 0, transition: { duration: 0.2 } }}
+              className="guide-pointer-motion"
             >
-              {/* Spoken / Written Voice Bubble */}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 30 }}
-                className="guide-voice-bubble"
-              >
-                {activeStep?.label && (
-                  <div className="text-[11px] font-extrabold text-cyan-300 mb-1">
-                    {activeStep.label}
-                  </div>
-                )}
-                <MarkdownRenderer content={stepText} />
-              </motion.div>
+              <div className="guide-pointer-aura">
+                <span className="guide-pointer-ring" />
+                <MousePointer2 size={30} strokeWidth={2.4} className="guide-pointer-icon" />
+                <span className="guide-pointer-dot" />
+              </div>
+
+              {/* Shape callouts already carry the explanation; avoid covering the lesson. */}
+              {screenAnnotations.length === 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.75, duration: 0.35 }}
+                  className={`guide-voice-bubble ${bubbleAlignment}`}
+                >
+                  {activeStep?.label && (
+                    <div className="text-[11px] font-extrabold text-cyan-300 mb-1">
+                      {activeStep.label}
+                    </div>
+                  )}
+                  <MarkdownRenderer content={stepText} />
+                </motion.div>
+              )}
             </motion.div>
           </>
         )}
@@ -246,7 +272,7 @@ export function GuideArrow({
         >
           <div className="flex items-center gap-2 pr-2 border-r border-white/15">
             <Sparkles size={16} className="text-cyan-400 animate-pulse" />
-            <span className="text-xs font-black tracking-wide text-white">Clicky Guide</span>
+            <span className="text-xs font-black tracking-wide text-white">Blinky Guide</span>
             <Badge variant="cyan" className="px-1.5 py-0 text-[9px] uppercase font-bold">
               Screen Aware
             </Badge>
