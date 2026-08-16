@@ -3,7 +3,7 @@ import { getPreloadPath, getUIPath } from './pathResolver.js';
 import { isDev } from './utils.js';
 import { loadBlinkyEnvironment } from './environment.js';
 import { detectImageMediaType, type ClaudeImageMediaType } from './imageMediaType.js';
-import { researchWeb } from './webResearchAgent.js';
+import { planResearchTracks, researchWeb } from './webResearchAgent.js';
 import { applySiteCredential, deleteSiteCredential, listSiteCredentials, saveSiteCredential, type SiteCredentialInput } from './credentialVault.js';
 import { addTaskApproval, dispatchTaskCommand, getRuntimeSnapshot, type TaskCommand } from './taskRuntime.js';
 import path from 'path';
@@ -119,6 +119,13 @@ interface ClaudeResponse {
   error?: { message?: string };
 }
 
+interface BrowserActionPlan {
+  summary: string;
+  requiresApproval: boolean;
+  riskReason?: string;
+  actions: Array<{ type: 'click' | 'type' | 'select' | 'extract' | 'scroll'; selector?: string; value?: string; description: string }>;
+}
+
 async function callClaude(content: ClaudeContent[]): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -152,6 +159,30 @@ async function callClaude(content: ClaudeContent[]): Promise<string> {
 
   if (!text) throw new Error('Claude returned no text content.');
   return text;
+}
+
+async function planBrowserActions(goal: string, pageUrl: string, pageSnapshot: string): Promise<BrowserActionPlan> {
+  const response = await callClaude([{ type: 'text', text: `You control one browser page for Blinky.
+Goal: ${goal}
+Page URL: ${pageUrl}
+Visible interactive DOM summary:
+${pageSnapshot.slice(0, 24000)}
+
+Return ONLY JSON matching:
+{"summary":"what this batch does","requiresApproval":false,"riskReason":"","actions":[{"type":"click|type|select|extract|scroll","selector":"exact CSS selector from the snapshot","value":"text or select value","description":"visible action"}]}
+
+Rules:
+- Maximum 8 actions. Use only selectors present in the snapshot.
+- Never read or return password values.
+- requiresApproval MUST be true before submitting forms, sending messages, publishing, purchasing, uploading, deleting, changing account data, accepting terms, or any irreversible action.
+- Filling non-sensitive fields, navigation, scrolling, and extraction may proceed without approval.
+- Do not invent completion. The renderer verifies every action.` }]);
+  const match = response.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('Browser agent returned no action plan.');
+  const plan = JSON.parse(match[0]) as BrowserActionPlan;
+  const allowed = new Set(['click', 'type', 'select', 'extract', 'scroll']);
+  plan.actions = (plan.actions || []).filter((action) => allowed.has(action.type)).slice(0, 8);
+  return plan;
 }
 
 interface HistoryItem {
@@ -287,14 +318,22 @@ function createWindow() {
     }
   });
 
-  ipcMain.handle('claude-web-research', async (_, goal: string) => {
+  ipcMain.handle('claude-web-plan', async (_, goal: string) => {
     try {
-      return { success: true, result: await researchWeb(goal) };
+      return { success: true, tracks: await planResearchTracks(goal) };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  });
+  ipcMain.handle('claude-web-research', async (_, goal: string, plannedTracks?: string[]) => {
+    try {
+      return { success: true, result: await researchWeb(goal, plannedTracks) };
     } catch (err) {
       console.error('Claude Web Agent Error:', err);
       return { success: false, error: (err as Error).message };
     }
   });
+  ipcMain.handle('browser-plan-actions', (_, goal: string, pageUrl: string, pageSnapshot: string) => planBrowserActions(goal, pageUrl, pageSnapshot));
 
   ipcMain.handle('credentials-list', () => listSiteCredentials());
   ipcMain.handle('credentials-save', (_, credential: SiteCredentialInput) => saveSiteCredential(credential));
@@ -540,11 +579,42 @@ function createWindow() {
   });
 }
 
+let scheduleMonitorRunning = false;
+async function runDueSchedules(): Promise<void> {
+  if (scheduleMonitorRunning) return;
+  scheduleMonitorRunning = true;
+  try {
+    const snapshot = getRuntimeSnapshot();
+    const due = snapshot.schedules.filter((schedule) => schedule.enabled && new Date(schedule.nextRunAt).getTime() <= Date.now());
+    for (const schedule of due) {
+      const created = dispatchTaskCommand({ type: 'create', goal: schedule.prompt, workerGoals: ['Scheduled research', 'Verification', 'Synthesis'] });
+      const taskId = created.tasks[0]?.id;
+      if (taskId) dispatchTaskCommand({ type: 'status', taskId, status: 'running', message: `Running schedule: ${schedule.name}` });
+      try {
+        const result = await researchWeb(schedule.prompt);
+        if (taskId) {
+          result.sources.slice(0, 12).forEach((source) => dispatchTaskCommand({ type: 'evidence', taskId, evidence: { title: source.title, url: source.url, confidence: 0.8 } }));
+          dispatchTaskCommand({ type: 'status', taskId, status: 'completed', message: result.answer.slice(0, 500) });
+        }
+      } catch (error) {
+        if (taskId) dispatchTaskCommand({ type: 'status', taskId, status: 'failed', message: (error as Error).message });
+      }
+      dispatchTaskCommand({ type: 'schedule-save', schedule: { ...schedule, nextRunAt: new Date(Date.now() + Math.max(5, schedule.intervalMinutes) * 60_000).toISOString() } });
+    }
+  } finally {
+    scheduleMonitorRunning = false;
+  }
+}
+
 ipcMain.on('quit-app', () => {
   app.quit();
 });
 
-app.on('ready', createWindow);
+app.on('ready', () => {
+  createWindow();
+  void runDueSchedules();
+  setInterval(() => void runDueSchedules(), 60_000);
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

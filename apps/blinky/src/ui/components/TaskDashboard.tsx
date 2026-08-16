@@ -9,7 +9,8 @@ const statusLabel: Record<TaskStatus, string> = {
 export function TaskDashboard({ onUseTemplate }: { onUseTemplate: (prompt: string) => void }) {
   const [snapshot, setSnapshot] = useState<RuntimeSnapshot | null>(null);
   const [expanded, setExpanded] = useState<string>('');
-  const [section, setSection] = useState<'tasks' | 'templates' | 'memory' | 'schedules'>('tasks');
+  const [section, setSection] = useState<'tasks' | 'templates' | 'memory' | 'schedules' | 'profiles'>('tasks');
+  const [draft, setDraft] = useState({ name: '', value: '' });
 
   const refresh = useCallback(async () => setSnapshot(await window.electron.getRuntimeSnapshot()), []);
   useEffect(() => { void refresh(); const timer = window.setInterval(refresh, 2500); return () => window.clearInterval(timer); }, [refresh]);
@@ -19,7 +20,7 @@ export function TaskDashboard({ onUseTemplate }: { onUseTemplate: (prompt: strin
   return (
     <div className="task-dashboard">
       <div className="task-dashboard-tabs">
-        {(['tasks', 'templates', 'memory', 'schedules'] as const).map((item) => <button key={item} className={section === item ? 'active' : ''} onClick={() => setSection(item)}>{item}</button>)}
+        {(['tasks', 'templates', 'memory', 'schedules', 'profiles'] as const).map((item) => <button key={item} className={section === item ? 'active' : ''} onClick={() => setSection(item)}>{item}</button>)}
         <button onClick={refresh} title="Refresh"><RefreshCw size={11} /></button>
       </div>
       {section === 'tasks' && <div className="task-list">
@@ -42,13 +43,15 @@ export function TaskDashboard({ onUseTemplate }: { onUseTemplate: (prompt: strin
             {!!task.evidence.length && <div className="task-evidence"><b><FileCheck2 size={11} /> Evidence ({task.evidence.length})</b>{task.evidence.map((item) => <a href={item.url} key={item.id} title={item.excerpt}>{item.title} <small>{Math.round(item.confidence * 100)}%</small></a>)}</div>}
             <div className="task-controls">
               {task.status === 'paused' ? <button onClick={() => dispatch({ type: 'status', taskId: task.id, status: 'running', message: 'Resumed' })}><Play size={11} /> Resume</button> : <button onClick={() => dispatch({ type: 'status', taskId: task.id, status: 'paused', message: 'Paused by user' })}><Pause size={11} /> Pause</button>}
+              {(task.status === 'failed' || task.status === 'completed') && <button onClick={() => dispatch({ type: 'retry', taskId: task.id })}><RefreshCw size={11} /> Retry</button>}
             </div>
           </div>}
         </div>)}
       </div>}
-      {section === 'templates' && <div className="runtime-list">{snapshot.templates.map((template) => <button key={template.id} onClick={() => onUseTemplate(template.prompt)}><b>{template.name}</b><small>{template.category}</small></button>)}</div>}
-      {section === 'memory' && <div className="runtime-list">{!snapshot.memories.length && <div className="task-dashboard-empty">No saved preferences yet.</div>}{snapshot.memories.map((memory) => <div key={memory.id}><span><b>{memory.label}</b><small>{memory.value}</small></span><button onClick={() => dispatch({ type: 'delete-memory', memoryId: memory.id })}><Trash2 size={11} /></button></div>)}</div>}
-      {section === 'schedules' && <div className="runtime-list">{!snapshot.schedules.length && <div className="task-dashboard-empty">No recurring tasks configured.</div>}{snapshot.schedules.map((schedule) => <div key={schedule.id}><Clock3 size={11} /><span><b>{schedule.name}</b><small>Every {schedule.intervalMinutes} min · next {new Date(schedule.nextRunAt).toLocaleString()}</small></span></div>)}</div>}
+      {section === 'templates' && <div className="runtime-list"><form className="runtime-add" onSubmit={(event) => { event.preventDefault(); if (!draft.name || !draft.value) return; void dispatch({ type: 'template-save', template: { id: `template-${Date.now()}`, name: draft.name, prompt: draft.value, category: 'Custom' } }); setDraft({ name: '', value: '' }); }}><input placeholder="Template name" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })}/><input placeholder="Reusable task prompt" value={draft.value} onChange={(event) => setDraft({ ...draft, value: event.target.value })}/><button>Add</button></form>{snapshot.templates.map((template) => <button key={template.id} onClick={() => onUseTemplate(template.prompt)}><b>{template.name}</b><small>{template.category}</small></button>)}</div>}
+      {section === 'memory' && <div className="runtime-list"><form className="runtime-add" onSubmit={(event) => { event.preventDefault(); if (!draft.name || !draft.value) return; void dispatch({ type: 'memory-save', memory: { id: `memory-${Date.now()}`, label: draft.name, value: draft.value, createdAt: new Date().toISOString() } }); setDraft({ name: '', value: '' }); }}><input placeholder="Preference name" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })}/><input placeholder="What Blinky should remember" value={draft.value} onChange={(event) => setDraft({ ...draft, value: event.target.value })}/><button>Add</button></form>{snapshot.memories.map((memory) => <div key={memory.id}><span><b>{memory.label}</b><small>{memory.value}</small></span><button onClick={() => dispatch({ type: 'delete-memory', memoryId: memory.id })}><Trash2 size={11} /></button></div>)}</div>}
+      {section === 'schedules' && <div className="runtime-list"><form className="runtime-add" onSubmit={(event) => { event.preventDefault(); if (!draft.name || !draft.value) return; void dispatch({ type: 'schedule-save', schedule: { id: `schedule-${Date.now()}`, name: draft.name, prompt: draft.value, intervalMinutes: 1440, enabled: true, nextRunAt: new Date(Date.now() + 86_400_000).toISOString() } }); setDraft({ name: '', value: '' }); }}><input placeholder="Daily schedule name" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })}/><input placeholder="Task to run every day" value={draft.value} onChange={(event) => setDraft({ ...draft, value: event.target.value })}/><button>Add</button></form>{snapshot.schedules.map((schedule) => <div key={schedule.id}><Clock3 size={11} /><span><b>{schedule.name}</b><small>Every {schedule.intervalMinutes} min · next {new Date(schedule.nextRunAt).toLocaleString()}</small></span></div>)}</div>}
+      {section === 'profiles' && <div className="runtime-list">{snapshot.profiles.map((profile) => <div key={profile.id}><i className="profile-dot" style={{ background: profile.color }} /><span><b>{profile.name}</b><small>Isolated cookies · {profile.partition}</small></span></div>)}</div>}
     </div>
   );
 }

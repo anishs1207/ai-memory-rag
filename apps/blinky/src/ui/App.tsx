@@ -541,12 +541,41 @@ function App() {
     setClickyStatus('Researching the web...');
     setAiHereStatus(`Understanding your goal and researching: “${browserQuery}”`);
 
+    let runtimeTaskId = '';
     try {
-      const response = await window.electron.claudeWebResearch(browserQuery);
+      setAiHereStatus('Planning parallel browser workers...');
+      const planResponse = await window.electron.claudeWebPlan(browserQuery);
+      if (planResponse.success === false) throw new Error(planResponse.error);
+      const plannedTracks = planResponse.tracks.slice(0, 4);
+      const provisionalTaskSteps: BrowserStep[] = plannedTracks.map((track, index) => ({
+        query: track,
+        timestamp: actionTimestamp,
+        targetUrl: `https://www.google.com/search?q=${encodeURIComponent(track)}`,
+        summary: `Worker ${index + 1} is researching this track...`,
+        kind: 'task' as const,
+      }));
+      setBrowserSteps((prevSteps) => [...provisionalTaskSteps, ...prevSteps]);
+      setAiHereStatus(`${plannedTracks.length} browser workers are researching in parallel...`);
+      const plannedRuntime = await window.electron.dispatchTaskCommand({
+        type: 'create',
+        goal: browserQuery,
+        workerGoals: plannedTracks,
+      });
+      runtimeTaskId = plannedRuntime.tasks[0]?.id || '';
+      if (runtimeTaskId) {
+        await window.electron.dispatchTaskCommand({ type: 'status', taskId: runtimeTaskId, status: 'running', message: 'Parallel browser workers are researching' });
+      }
+      const response = await window.electron.claudeWebResearch(browserQuery, plannedTracks);
       if (response.success === false) throw new Error(response.error);
 
       loadAiHereUrl(response.result.targetUrl);
       setAiHereStatus(response.result.answer);
+      if (runtimeTaskId) {
+        for (const source of response.result.sources.slice(0, 12)) {
+          await window.electron.dispatchTaskCommand({ type: 'evidence', taskId: runtimeTaskId, evidence: { title: source.title, url: source.url, confidence: 0.8 } });
+        }
+        await window.electron.dispatchTaskCommand({ type: 'status', taskId: runtimeTaskId, status: 'completed', message: `${response.result.tracks.length} workers completed; ${response.result.sources.length} sources collected` });
+      }
       setBrowserSteps((prevSteps) => {
         const taskSteps = response.result.tracks.map((track) => ({
           query: track.task,
@@ -572,11 +601,14 @@ function App() {
           },
           ...taskSteps,
           ...sourceSteps,
-          ...prevSteps,
+          ...prevSteps.filter((step) => !(step.kind === 'task' && step.timestamp === actionTimestamp)),
         ];
       });
       speak(response.result.answer);
     } catch (err) {
+      if (runtimeTaskId) {
+        await window.electron.dispatchTaskCommand({ type: 'status', taskId: runtimeTaskId, status: 'failed', message: (err as Error).message });
+      }
       const fallbackUrl = `https://www.google.com/search?q=${encodeURIComponent(browserQuery)}`;
       loadAiHereUrl(fallbackUrl);
       setAiHereStatus(`The research agent could not finish: ${(err as Error).message}. Opened search results instead.`);

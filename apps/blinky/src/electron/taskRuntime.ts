@@ -6,6 +6,8 @@ export type TaskStatus = 'planned' | 'running' | 'waiting-approval' | 'paused' |
 export type TaskCommand =
   | { type: 'create'; goal: string; workerGoals?: string[] }
   | { type: 'status'; taskId: string; status: TaskStatus; message?: string }
+  | { type: 'worker-status'; taskId: string; workerId: string; status: TaskStatus; progress: number; message: string }
+  | { type: 'retry'; taskId: string }
   | { type: 'approve'; taskId: string; approvalId: string; decision: 'approved' | 'rejected' }
   | { type: 'evidence'; taskId: string; evidence: Omit<EvidenceRecord, 'id' | 'capturedAt'> }
   | { type: 'profile-save'; profile: BrowserProfile }
@@ -69,6 +71,10 @@ export function dispatchTaskCommand(command: TaskCommand): RuntimeSnapshot {
     });
   } else if (command.type === 'status') {
     state.tasks = state.tasks.map((task) => task.id === command.taskId ? { ...task, status: command.status, message: command.message || task.message, updatedAt: now(), progress: command.status === 'completed' ? 100 : task.progress } : task);
+  } else if (command.type === 'worker-status') {
+    state.tasks = state.tasks.map((task) => task.id === command.taskId ? { ...task, updatedAt: now(), workers: task.workers.map((worker) => worker.id === command.workerId ? { ...worker, status: command.status, progress: Math.max(0, Math.min(100, command.progress)), message: command.message } : worker), progress: Math.round(task.workers.reduce((sum, worker) => sum + (worker.id === command.workerId ? command.progress : worker.progress), 0) / Math.max(1, task.workers.length)) } : task);
+  } else if (command.type === 'retry') {
+    state.tasks = state.tasks.map((task) => task.id === command.taskId ? { ...task, status: 'planned', progress: 0, retries: task.retries + 1, message: 'Retry queued', updatedAt: now(), workers: task.workers.map((worker) => ({ ...worker, status: 'planned', progress: 0, message: 'Queued for retry' })) } : task);
   } else if (command.type === 'approve') {
     state.tasks = state.tasks.map((task) => task.id === command.taskId ? { ...task, status: command.decision === 'approved' ? 'running' : 'paused', updatedAt: now(), approvals: task.approvals.map((approval) => approval.id === command.approvalId ? { ...approval, status: command.decision } : approval) } : task);
   } else if (command.type === 'evidence') {

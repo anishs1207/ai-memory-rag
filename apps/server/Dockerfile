@@ -25,6 +25,9 @@ RUN npm ci --only=production
 
 COPY --from=builder /usr/src/app/apps/server/dist ./apps/server/dist
 
-EXPOSE 3000
+ENV NODE_ENV=production \
+    PORT=3001
+
+EXPOSE 3001
 
 CMD ["node", "apps/server/dist/index.js"]

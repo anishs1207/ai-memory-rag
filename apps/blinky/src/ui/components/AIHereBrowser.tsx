@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, RefreshCw, Globe, Mic, Play, Loader, Sparkles, Plus, X, LayoutGrid, LockKeyhole, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, RefreshCw, Globe, Mic, Play, Loader, Sparkles, Plus, X, LayoutGrid, LockKeyhole, Trash2, FileCheck2, ShieldAlert, Check } from 'lucide-react';
 import { VoiceActionPanel, type ExecutionLog } from './VoiceActionPanel';
-import type { SiteCredentialSummary } from '../types';
+import type { RuntimeSnapshot, SiteCredentialSummary } from '../types';
+import { TaskDashboard } from './TaskDashboard';
 
 export interface BrowserStep {
   query: string;
@@ -14,6 +15,8 @@ export interface BrowserStep {
 interface BrowserSession {
   id: string;
   url: string;
+  goal?: string;
+  partition?: string;
 }
 
 interface AIHereBrowserProps {
@@ -60,6 +63,8 @@ function BrowserCard({
   const [loading, setLoading] = useState(true);
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
+  const [agentStatus, setAgentStatus] = useState('');
+  const [pendingPlan, setPendingPlan] = useState<Awaited<ReturnType<typeof window.electron.planBrowserActions>> | null>(null);
 
   useEffect(() => {
     if (session.url !== address) setAddress(session.url);
@@ -101,11 +106,63 @@ function BrowserCard({
     viewRef.current?.loadURL(target);
   };
 
+  const executePlan = async (plan: NonNullable<typeof pendingPlan>) => {
+    const view = viewRef.current;
+    if (!view) return;
+    setPendingPlan(null);
+    for (let index = 0; index < plan.actions.length; index += 1) {
+      const action = plan.actions[index];
+      setAgentStatus(`${index + 1}/${plan.actions.length}: ${action.description}`);
+      const selector = JSON.stringify(action.selector || 'body');
+      const value = JSON.stringify(action.value || '');
+      const result = await view.executeJavaScript(`(() => {
+        const element = document.querySelector(${selector});
+        if (!element) return { ok: false, error: 'Target not found' };
+        const type = ${JSON.stringify(action.type)};
+        const value = ${value};
+        if (type === 'click') element.click();
+        if (type === 'type') {
+          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+          setter ? setter.call(element, value) : (element.value = value);
+          element.dispatchEvent(new Event('input', { bubbles: true }));
+          element.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (type === 'select') { element.value = value; element.dispatchEvent(new Event('change', { bubbles: true })); }
+        if (type === 'scroll') element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (type === 'extract') return { ok: true, text: (element.innerText || element.textContent || '').slice(0, 4000) };
+        return { ok: true };
+      })()`);
+      if (!result?.ok) { setAgentStatus(`Stopped: ${result?.error || 'verification failed'}`); return; }
+      await new Promise((resolve) => window.setTimeout(resolve, 500));
+    }
+    setAgentStatus('Action batch completed and verified.');
+  };
+
+  const runAgent = async () => {
+    const view = viewRef.current;
+    if (!view || !session.goal) return;
+    setAgentStatus('Inspecting page and planning actions…');
+    try {
+      const snapshot = await view.executeJavaScript(`(() => [...document.querySelectorAll('a,button,input:not([type="password"]),select,textarea,[role="button"]')].filter((el) => el.offsetParent !== null).slice(0,250).map((el,index) => {
+        if (!el.id) el.dataset.blinkyTarget = String(index);
+        const selector = el.id ? '#' + CSS.escape(el.id) : '[data-blinky-target="' + index + '"]';
+        return { selector, tag: el.tagName.toLowerCase(), type: el.type || '', text: (el.innerText || el.getAttribute('aria-label') || el.placeholder || el.name || '').trim().slice(0,180) };
+      }))()`);
+      const plan = await window.electron.planBrowserActions(session.goal, view.getURL(), JSON.stringify(snapshot));
+      if (!plan.actions.length) { setAgentStatus('No safe action was available on this page.'); return; }
+      if (plan.requiresApproval) { setPendingPlan(plan); setAgentStatus('Waiting for approval before a consequential action.'); return; }
+      await executePlan(plan);
+    } catch (error) {
+      setAgentStatus(`Agent stopped: ${(error as Error).message}`);
+    }
+  };
+
   return (
     <section className={`browser-session-card ${active ? 'active' : ''}`} onPointerDown={onActivate}>
       <div className="browser-tab-strip">
         <span className="browser-favicon"><Globe size={11} /></span>
         <span className="browser-tab-title">{title}</span>
+        {session.goal && <button type="button" className="browser-agent-run" onClick={runAgent} title="Run assigned task"><Sparkles size={11} /> Run</button>}
         <button type="button" className="browser-tab-close" onClick={onClose} title="Close browser"><X size={12} /></button>
       </div>
       <form className="browser-chrome" onSubmit={(event) => { event.preventDefault(); navigate(); }}>
@@ -121,11 +178,16 @@ function BrowserCard({
         <webview
           ref={viewRef}
           src={session.url}
-          partition={`persist:blinky-browser-${session.id}`}
+          partition={session.partition || `persist:blinky-browser-${session.id}`}
           allowpopups
           className="clicky-webview"
         />
         {loading && <div className="webview-loader"><Loader className="spinner" size={22} /><span>Loading {title}…</span></div>}
+        {agentStatus && <div className="browser-agent-status">{agentStatus}</div>}
+        {pendingPlan && <div className="browser-approval-overlay">
+          <ShieldAlert size={18} /><strong>Approval required</strong><p>{pendingPlan.summary}</p><small>{pendingPlan.riskReason}</small>
+          <div><button type="button" onClick={() => executePlan(pendingPlan)}><Check size={12} /> Approve actions</button><button type="button" onClick={() => { setPendingPlan(null); setAgentStatus('Action rejected.'); }}><X size={12} /> Reject</button></div>
+        </div>}
       </div>
     </section>
   );
@@ -150,9 +212,12 @@ export function AIHereBrowser({
   const [sessions, setSessions] = useState<BrowserSession[]>([{ id: '1', url: currentUrl }]);
   const [activeId, setActiveId] = useState('1');
   const [showCredentials, setShowCredentials] = useState(false);
+  const [showTasks, setShowTasks] = useState(true);
   const [credentials, setCredentials] = useState<SiteCredentialSummary[]>([]);
   const [credentialForm, setCredentialForm] = useState({ domain: '', username: '', password: '', autoFill: true });
   const [credentialStatus, setCredentialStatus] = useState('');
+  const [profiles, setProfiles] = useState<RuntimeSnapshot['profiles']>([]);
+  const [activeProfile, setActiveProfile] = useState('research');
 
   useEffect(() => {
     setSessions((items) => items.map((item) => item.id === activeId ? { ...item, url: currentUrl } : item));
@@ -162,7 +227,10 @@ export function AIHereBrowser({
     setCredentials(await window.electron.listSiteCredentials());
   }, []);
 
-  useEffect(() => { void refreshCredentials(); }, [refreshCredentials]);
+  useEffect(() => {
+    void refreshCredentials();
+    void window.electron.getRuntimeSnapshot().then((runtime) => setProfiles(runtime.profiles));
+  }, [refreshCredentials]);
 
   useEffect(() => {
     const taskSteps = browserSteps.filter((step) => step.kind === 'task').slice(0, 6);
@@ -170,23 +238,25 @@ export function AIHereBrowser({
     const signature = taskSteps.map((step) => `${step.timestamp}:${step.targetUrl}`).join('|');
     if (signature === lastAutoGridRef.current) return;
     lastAutoGridRef.current = signature;
-    const nextSessions = taskSteps.map((step) => ({ id: String(nextId.current++), url: step.targetUrl }));
+    const partition = profiles.find((profile) => profile.id === activeProfile)?.partition;
+    const nextSessions = taskSteps.map((step) => ({ id: String(nextId.current++), url: step.targetUrl, goal: step.query, partition }));
     setSessions(nextSessions);
     setActiveId(nextSessions[0].id);
-  }, [browserSteps]);
+  }, [browserSteps, profiles, activeProfile]);
 
   const updateSession = useCallback((id: string, url: string) => {
     setSessions((items) => items.map((item) => item.id === id ? { ...item, url } : item));
   }, []);
 
-  const addSession = useCallback((url = 'https://www.google.com/') => {
+  const addSession = useCallback((url = 'https://www.google.com/', goal?: string) => {
     setSessions((items) => {
       if (items.length >= 6) return items;
       const id = String(nextId.current++);
       setActiveId(id);
-      return [...items, { id, url }];
+      const partition = profiles.find((profile) => profile.id === activeProfile)?.partition;
+      return [...items, { id, url, goal, partition }];
     });
-  }, []);
+  }, [profiles, activeProfile]);
 
   const closeSession = (id: string) => {
     setSessions((items) => {
@@ -229,9 +299,11 @@ export function AIHereBrowser({
         <div className="aihere-side-header"><Sparkles size={14} /> Blinky Browser Workspace</div>
         <div className="browser-workspace-actions">
           <span className="browser-count"><LayoutGrid size={12} /> {sessions.length} session{sessions.length === 1 ? '' : 's'}</span>
+          <select className="browser-profile-select" value={activeProfile} onChange={(event) => setActiveProfile(event.target.value)} title="Browser profile">{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select>
           <button type="button" onClick={() => addSession()}><Plus size={12} /> New browser</button>
           <button type="button" onClick={openResearchGrid} disabled={!browserSteps.length}><LayoutGrid size={12} /> Sources grid</button>
           <button type="button" onClick={() => setShowCredentials((value) => !value)}><LockKeyhole size={12} /> Credentials</button>
+          <button type="button" onClick={() => setShowTasks((value) => !value)}><FileCheck2 size={12} /> Tasks</button>
         </div>
       </div>
 
@@ -260,6 +332,8 @@ export function AIHereBrowser({
             <button type="submit" className="play-btn" disabled={!aiHerePrompt.trim()}><Play size={12} fill="currentColor" /></button>
           </form>
 
+          {showTasks && <TaskDashboard onUseTemplate={(prompt) => setAiHerePrompt(prompt)} />}
+
           {showCredentials && (
             <div className="credential-vault-panel">
               <strong><LockKeyhole size={12} /> Secure credential vault</strong>
@@ -284,7 +358,7 @@ export function AIHereBrowser({
           <div className="aihere-status-text">{aiHereStatus}</div>
           <div className="aihere-step-list">
             {browserSteps.length === 0 ? <div className="cly-log-empty">Give Blinky a goal. Research sources can open together in the grid.</div> : browserSteps.slice(0, 10).map((step, index) => (
-              <button type="button" className="aihere-step" key={`${step.timestamp}-${index}`} onClick={() => addSession(step.targetUrl)}>
+              <button type="button" className="aihere-step" key={`${step.timestamp}-${index}`} onClick={() => addSession(step.targetUrl, step.query)}>
                 <span className="cly-log-timestamp">{step.timestamp}</span><strong>{step.query}</strong><span>{step.summary}</span>
               </button>
             ))}

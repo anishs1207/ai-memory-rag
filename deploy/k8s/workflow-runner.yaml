@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: inqora-server
+  namespace: inqora
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: workflow-runner-access
+  namespace: workflow-runner
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: inqora-server-workflow-runner
+  namespace: workflow-runner
+subjects:
+  - kind: ServiceAccount
+    name: inqora-server
+    namespace: inqora
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: workflow-runner-access
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: runner
+  namespace: workflow-runner
+spec:
+  replicas: 3
+  selector:
+    matchLabels: {app: runner}
+  template:
+    metadata:
+      labels: {app: runner}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: runner
+          image: node:20-alpine
+          command: ["sh", "-c", "trap : TERM INT; sleep infinity & wait"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 25m, memory: 32Mi}
+            limits: {cpu: "1", memory: 512Mi}

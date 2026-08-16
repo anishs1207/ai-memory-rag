@@ -60,9 +60,16 @@ export interface ElectronAPI {
   quitApp: () => void;
   claudeChat: (prompt: string) => Promise<string>;
   claudeVision: (prompt: string, base64Image: string) => Promise<string>;
-  claudeWebResearch: (goal: string) => Promise<
+  claudeWebPlan: (goal: string) => Promise<{ success: true; tracks: string[] } | { success: false; error: string }>;
+  claudeWebResearch: (goal: string, plannedTracks?: string[]) => Promise<
     { success: true; result: WebResearchResult } | { success: false; error: string }
   >;
+  planBrowserActions: (goal: string, pageUrl: string, pageSnapshot: string) => Promise<{
+    summary: string;
+    requiresApproval: boolean;
+    riskReason?: string;
+    actions: Array<{ type: 'click' | 'type' | 'select' | 'extract' | 'scroll'; selector?: string; value?: string; description: string }>;
+  }>;
   listSiteCredentials: () => Promise<SiteCredentialSummary[]>;
   saveSiteCredential: (credential: { domain: string; username: string; password: string; autoFill: boolean }) => Promise<SiteCredentialSummary>;
   deleteSiteCredential: (domain: string) => Promise<void>;

@@ -46,7 +46,7 @@ type Persona = {
 
 type Phase = "setup" | "campaign" | "council" | "leader" | "crisis";
 
-const API_BASE = "http://localhost:3001/api/v1/panel";
+const API_BASE = "/api/v1/panel";
 
 export default function Page() {
     const [phase, setPhase] = useState<Phase>("setup");

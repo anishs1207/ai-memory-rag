@@ -1,114 +1,98 @@
+name: inqora
+
 services:
-  # Database for the system
   db:
-    image: postgres:15
-    container_name: postgres_db
-    restart: always
+    image: postgres:15-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: agentic_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - inqora-network
+      POSTGRES_USER: ${POSTGRES_USER:-inqora}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inqora-local}
+      POSTGRES_DB: ${POSTGRES_DB:-inqora}
+    ports: ["5432:5432"]
+    volumes: ["postgres_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # Redis for image processing queues
   redis:
-    image: redis:7
-    container_name: redis_cache
-    restart: always
-    ports:
-      - "6379:6379"
-    networks:
-      - inqora-network
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6379:6379"]
+    volumes: ["redis_data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
-  # Main Server
   server:
+    image: ${INQORA_SERVER_IMAGE:-inqora/server:local}
     build:
       context: .
-      dockerfile: ./apps/server/Dockerfile
-    container_name: inqora-server
-    ports:
-      - "3000:3000"
+      dockerfile: apps/server/Dockerfile
+    restart: unless-stopped
+    ports: ["3001:3001"]
     environment:
-      DATABASE_URL: postgresql://user:password@db:5432/agentic_db?schema=public
-    depends_on:
-      - db
-    networks:
-      - inqora-network
-
-  # Image Memory Backend
-  image-memory-be:
-    build:
-      context: .
-      dockerfile: ./apps/image-memory-be/Dockerfile
-    container_name: inqora-image-memory-be
-    ports:
-      - "3001:3001"
-    environment:
-      DATABASE_URL: postgresql://user:password@db:5432/agentic_db?schema=public
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
       PORT: 3001
-    depends_on:
-      - db
-      - redis
-    networks:
-      - inqora-network
-
-  # Web Frontend
-  web:
-    build:
-      context: .
-      dockerfile: ./apps/web/Dockerfile
-    container_name: inqora-web
-    ports:
-      - "3005:3000"
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3001
-    depends_on:
-      - image-memory-be
-      - server
-    networks:
-      - inqora-network
-
-  # Documentation
-  docs:
-    build:
-      context: .
-      dockerfile: ./apps/docs/Dockerfile
-    container_name: inqora-docs
-    ports:
-      - "8080:80"
-    networks:
-      - inqora-network
-
-  # RAG Pipeline Microservice
-  rag-pipeline:
-    build:
-      context: ./apps/rag-pipeline
-      dockerfile: Dockerfile
-    container_name: inqora-rag-pipeline
-    ports:
-      - "8000:8000"
-    environment:
-      DATABASE_URL: postgresql://user:password@db:5432/agentic_db?schema=public
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3005}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-inqora}:${POSTGRES_PASSWORD:-inqora-local}@db:5432/${POSTGRES_DB:-inqora}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      PINECONE_API_KEY: ${PINECONE_API_KEY:-}
+      KUBE_NAMESPACE: ${KUBE_NAMESPACE:-workflow-runner}
+      KUBE_POD_LABEL: app=runner
     depends_on:
-      - db
-      - redis
-    networks:
-      - inqora-network
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 
-networks:
-  inqora-network:
-    driver: bridge
+  rag-pipeline:
+    image: ${INQORA_RAG_IMAGE:-inqora/rag-pipeline:local}
+    build:
+      context: apps/rag-pipeline
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports: ["8000:8000"]
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DEBUG: ${DEBUG:-false}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-inqora}:${POSTGRES_PASSWORD:-inqora-local}@db:5432/${POSTGRES_DB:-inqora}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ALLOWED_API_KEYS: ${ALLOWED_API_KEYS:-inqora_dev_key}
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  web:
+    image: ${INQORA_WEB_IMAGE:-inqora/web:local}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    ports: ["3005:3000"]
+    environment:
+      PORT: 3000
+      SERVER_API_URL: http://server:3001
+    depends_on:
+      server: {condition: service_healthy}
 
 volumes:
   postgres_data:
+  redis_data:

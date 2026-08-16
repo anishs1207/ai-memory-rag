@@ -109,7 +109,7 @@ type UploadQueueItem = {
     error?: string;
 };
 
-const SERVER_URL = "http://localhost:3001";
+const SERVER_URL = "";
 
 const ROUTE_MAP = {
     general: `${SERVER_URL}/api/v1/message/general`,

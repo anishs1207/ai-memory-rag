@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import console from 'node:console';
 import { readFile } from 'node:fs/promises';
+import { URL } from 'node:url';
 
 const topBarPath = new URL('../src/ui/components/TopControlBar.tsx', import.meta.url);
 const browserPath = new URL('../src/ui/components/AIHereBrowser.tsx', import.meta.url);
@@ -14,6 +16,8 @@ const appPath = new URL('../src/ui/App.tsx', import.meta.url);
 const annotationPlanPath = new URL('../src/ui/screenAnnotations.ts', import.meta.url);
 const annotationOverlayPath = new URL('../src/ui/components/ScreenAnnotationOverlay.tsx', import.meta.url);
 const credentialVaultPath = new URL('../src/electron/credentialVault.ts', import.meta.url);
+const taskRuntimePath = new URL('../src/electron/taskRuntime.ts', import.meta.url);
+const taskDashboardPath = new URL('../src/ui/components/TaskDashboard.tsx', import.meta.url);
 
 async function verifyToolbarColorPicker() {
   const [topBar, styles] = await Promise.all([
@@ -62,7 +66,7 @@ async function verifyClaudeProvider() {
 
 async function verifyWebResearchAgent() {
   const agent = await readFile(webResearchAgentPath, 'utf8');
-  assert.match(agent, /export async function researchWeb\(goal: string\)/);
+  assert.match(agent, /export async function researchWeb\(goal: string, plannedTasks\?: string\[\]\)/);
   assert.match(agent, /web_search_20260318/);
   assert.match(agent, /max_uses: 8/);
   assert.match(agent, /targetUrl: sources\[0\]\?\.url/);
@@ -134,15 +138,17 @@ async function verifyVoiceTranscription() {
 }
 
 async function verifyBrowserWorkspace() {
-  const [browser, vault, main, preload, agent] = await Promise.all([
+  const [browser, vault, main, preload, agent, runtime, dashboard] = await Promise.all([
     readFile(browserPath, 'utf8'),
     readFile(credentialVaultPath, 'utf8'),
     readFile(electronMainPath, 'utf8'),
     readFile(preloadPath, 'utf8'),
     readFile(webResearchAgentPath, 'utf8'),
+    readFile(taskRuntimePath, 'utf8'),
+    readFile(taskDashboardPath, 'utf8'),
   ]);
   assert.match(browser, /browser-session-grid/);
-  assert.match(browser, /partition={`persist:blinky-browser-\${session\.id}`}/);
+  assert.match(browser, /partition=\{session\.partition \|\| `persist:blinky-browser-\${session\.id}`\}/);
   assert.match(browser, /Sources grid/);
   assert.match(browser, /Secure credential vault/);
   assert.match(vault, /safeStorage\.encryptString/);
@@ -154,6 +160,28 @@ async function verifyBrowserWorkspace() {
   assert.match(agent, /exactly 3 or 4 independent research tracks/);
   assert.match(browser, /step\.kind === 'task'/);
   assert.match(browser, /setSessions\(nextSessions\)/);
+  assert.match(browser, /planBrowserActions/);
+  assert.match(browser, /Approval required/);
+  assert.match(browser, /executeJavaScript/);
+  assert.match(browser, /browser-profile-select/);
+  assert.match(main, /browser-plan-actions/);
+  assert.match(main, /requiresApproval MUST be true/);
+  assert.match(runtime, /blinky-runtime\.json/);
+  assert.match(runtime, /waiting-approval/);
+  assert.match(runtime, /schedule-save/);
+  assert.match(dashboard, /Needs approval/);
+  assert.match(dashboard, /Retry/);
+  assert.match(dashboard, /memory-save/);
+  assert.match(main, /runDueSchedules/);
+}
+
+async function verifyWorkerBrowsersSpawnBeforeResearch() {
+  const app = await readFile(appPath, 'utf8');
+  const handler = app.slice(app.indexOf('const handleAiHereBrowse'), app.indexOf('// --- AUTOMATED WINDOWS ACTIONS ---'));
+  const provisionalWorkers = handler.indexOf("kind: 'task' as const");
+  const researchStarts = handler.indexOf('window.electron.claudeWebResearch');
+  assert.ok(provisionalWorkers >= 0, 'browser tasks must create provisional worker sessions');
+  assert.ok(provisionalWorkers < researchStarts, 'worker browsers must spawn before parallel research starts');
 }
 
 await verifyToolbarColorPicker();
@@ -164,4 +192,5 @@ await verifyPersistentGuidePointer();
 await verifyScreenConceptAnnotations();
 await verifyVoiceTranscription();
 await verifyBrowserWorkspace();
+await verifyWorkerBrowsersSpawnBeforeResearch();
 console.log('UI interaction regression checks passed.');

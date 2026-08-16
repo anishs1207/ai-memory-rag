@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rag-pipeline
+  namespace: inqora
+spec:
+  selector: {app: rag-pipeline}
+  ports:
+    - {name: http, port: 8000, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-pipeline
+  namespace: inqora
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: rag-pipeline}
+  template:
+    metadata:
+      labels: {app: rag-pipeline}
+    spec:
+      containers:
+        - name: rag-pipeline
+          image: inqora/rag-pipeline:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: http, containerPort: 8000}
+          envFrom:
+            - configMapRef: {name: inqora-config}
+            - secretRef: {name: inqora-secrets}
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: inqora-secrets, key: POSTGRES_PASSWORD}
+            - name: DATABASE_URL
+              value: postgresql://inqora:$(POSTGRES_PASSWORD)@postgres:5432/inqora
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: "2", memory: 2Gi}

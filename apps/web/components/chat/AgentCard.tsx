@@ -38,7 +38,7 @@ import {
 } from "@/components/prompt-kit/chat-container";
 import { ScrollButton } from "@/components/prompt-kit/scroll-button";
 
-const SERVER_URL = "http://localhost:3001";
+const SERVER_URL = "";
 
 const ROUTE_MAP = {
     general: `${SERVER_URL}/api/v1/message/general`,

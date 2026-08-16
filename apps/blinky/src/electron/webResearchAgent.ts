@@ -63,7 +63,7 @@ function fallbackTracks(goal: string): string[] {
   ];
 }
 
-async function planResearchTracks(goal: string): Promise<string[]> {
+export async function planResearchTracks(goal: string): Promise<string[]> {
   try {
     const payload = await callAnthropic({
       max_tokens: 900,
@@ -109,8 +109,8 @@ async function synthesize(goal: string, tracks: WebResearchTrack[]): Promise<str
 }
 
 /** Decompose, run parallel research tracks, and synthesize behind one interface. */
-export async function researchWeb(goal: string): Promise<WebResearchResult> {
-  const tasks = await planResearchTracks(goal);
+export async function researchWeb(goal: string, plannedTasks?: string[]): Promise<WebResearchResult> {
+  const tasks = plannedTasks?.length ? plannedTasks.slice(0, 4) : await planResearchTracks(goal);
   const settled = await Promise.allSettled(tasks.map((task) => researchTrack(task)));
   const tracks = settled.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []);
   if (!tracks.length) throw new Error('All parallel browser research tracks failed.');

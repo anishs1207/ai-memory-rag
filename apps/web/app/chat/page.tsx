@@ -18,7 +18,7 @@ import {
 } from "@/redux/chatSlice";
 import { Conversation } from "@/types";
 
-const SERVER_URL = "http://localhost:3001";
+const SERVER_URL = "";
 
 export default function FullChatApp() {
     const dispatch = useAppDispatch();
