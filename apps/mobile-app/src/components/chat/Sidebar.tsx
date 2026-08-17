@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
+  TextInput,
   Pressable,
   ScrollView,
   Platform,
@@ -17,6 +18,9 @@ interface SidebarProps {
   onSelectChat: (id: string) => void;
   onNewChat: () => void;
   onDeleteChat: (id: string) => void;
+  onRenameChat: (id: string, title: string) => void;
+  onTogglePin: (id: string) => void;
+  onDuplicateChat: (id: string) => void;
 }
 
 export default function Sidebar({
@@ -27,7 +31,19 @@ export default function Sidebar({
   onSelectChat,
   onNewChat,
   onDeleteChat,
+  onRenameChat,
+  onTogglePin,
+  onDuplicateChat,
 }: SidebarProps) {
+  const [search, setSearch] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const visibleConversations = useMemo(
+    () => conversations
+      .filter((chat) => chat.title.toLowerCase().includes(search.trim().toLowerCase()))
+      .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.timestamp - a.timestamp),
+    [conversations, search]
+  );
   // Group conversations by period
   const getGroupedConversations = () => {
     const today: Conversation[] = [];
@@ -41,7 +57,7 @@ export default function Sidebar({
     tempYest.setDate(now.getDate() - 1);
     const yesterdayStr = tempYest.toDateString();
 
-    conversations.forEach((chat) => {
+    visibleConversations.forEach((chat) => {
       const date = new Date(chat.timestamp);
       const dateStr = date.toDateString();
 
@@ -65,7 +81,7 @@ export default function Sidebar({
 
   // Sidebar container styles
   const sidebarClass = `
-    flex-col h-full bg-[#f7f7f2] dark:bg-[#101411] border-r border-[#e7e9e3] dark:border-[#29312b]
+    flex-col h-full bg-[#f7f5ff] dark:bg-[#101411] border-r border-[#e7e2f2] dark:border-[#29312b]
     ${Platform.OS === "web" ? "w-72 md:flex" : "w-72"}
   `;
 
@@ -74,7 +90,7 @@ export default function Sidebar({
       {/* Header */}
       <View className="flex-row items-center justify-between px-5 pt-7 pb-5 border-b border-[#e7e9e3] dark:border-[#29312b]">
         <View className="flex-row items-center space-x-3">
-          <View className="bg-[#171b18] dark:bg-[#f1f3ef] p-2.5 rounded-xl">
+          <View className="bg-[#28242f] dark:bg-[#f1f3ef] p-2.5 rounded-2xl">
             <Ionicons name="sparkles-outline" size={22} color="#8b5cf6" />
           </View>
           <View>
@@ -105,16 +121,21 @@ export default function Sidebar({
             onNewChat();
             if (Platform.OS !== "web") onClose();
           }}
-          className="flex-row items-center justify-center space-x-2 py-4 bg-[#171b18] dark:bg-[#f1f3ef] rounded-2xl active:opacity-80"
+          className="flex-row items-center justify-center space-x-2 py-4 bg-[#6d5dfb] dark:bg-[#f1f3ef] rounded-[20px] shadow-sm active:opacity-80"
         >
           <Ionicons name="add" size={21} color="#8b5cf6" />
           <Text className="text-[15px] font-semibold text-white dark:text-[#171b18]">New chat</Text>
         </Pressable>
       </View>
 
+      <View className="mx-4 mb-3 h-12 px-3 rounded-2xl bg-white dark:bg-[#1b211d] border border-[#e7e2f2] dark:border-[#29312b] flex-row items-center">
+        <Ionicons name="search-outline" size={18} color="#8c8495" />
+        <TextInput value={search} onChangeText={setSearch} placeholder="Search conversations" placeholderTextColor="#8c8495" className="flex-1 ml-2 text-[14px] text-[#28232e] dark:text-white" />
+      </View>
+
       {/* Conversations List */}
       <ScrollView className="flex-1 px-3" showsVerticalScrollIndicator={false}>
-        {conversations.length === 0 ? (
+        {visibleConversations.length === 0 ? (
           <View className="py-8 items-center justify-center">
             <Text className="text-[14px] text-gray-500 dark:text-zinc-400 font-medium">
               No conversations yet
@@ -133,10 +154,10 @@ export default function Sidebar({
                   return (
                     <View
                       key={chat.id}
-                      className={`group flex-row items-center rounded-xl px-3 py-3 transition-colors ${
+                      className={`flex-row items-center rounded-xl px-3 py-3 ${
                         isActive
-                          ? "bg-violet-50 dark:bg-violet-950/20"
-                          : "hover:bg-gray-50 dark:hover:bg-zinc-900/40"
+                          ? "bg-[#ebe6ff] dark:bg-violet-950/20"
+                          : "bg-transparent"
                       }`}
                     >
                       <Pressable
@@ -146,7 +167,16 @@ export default function Sidebar({
                         }}
                         className="flex-1"
                       >
-                        <Text
+                        {editingId === chat.id ? (
+                          <TextInput
+                            autoFocus
+                            value={editingTitle}
+                            onChangeText={setEditingTitle}
+                            onSubmitEditing={() => { onRenameChat(chat.id, editingTitle); setEditingId(null); }}
+                            onBlur={() => { onRenameChat(chat.id, editingTitle); setEditingId(null); }}
+                            className="text-[14px] font-semibold text-[#2f2936] dark:text-white p-0"
+                          />
+                        ) : <Text
                           numberOfLines={1}
                           className={`text-[14px] font-semibold ${
                             isActive
@@ -154,14 +184,22 @@ export default function Sidebar({
                               : "text-gray-700 dark:text-zinc-300"
                           }`}
                         >
-                          {chat.title || "New Conversation"}
-                        </Text>
+                          {chat.pinned ? "★ " : ""}{chat.title || "New Conversation"}
+                        </Text>}
                       </Pressable>
 
-                      {/* Trash action button */}
+                      <Pressable onPress={() => onTogglePin(chat.id)} className="p-1.5 rounded-md active:opacity-50">
+                        <Ionicons name={chat.pinned ? "star" : "star-outline"} size={15} color={chat.pinned ? "#f59e0b" : "#9ca3af"} />
+                      </Pressable>
+                      <Pressable onPress={() => { setEditingTitle(chat.title); setEditingId(chat.id); }} className="p-1.5 rounded-md active:opacity-50">
+                        <Ionicons name="pencil-outline" size={15} color="#9ca3af" />
+                      </Pressable>
+                      <Pressable onPress={() => onDuplicateChat(chat.id)} className="p-1.5 rounded-md active:opacity-50">
+                        <Ionicons name="copy-outline" size={15} color="#9ca3af" />
+                      </Pressable>
                       <Pressable
                         onPress={() => onDeleteChat(chat.id)}
-                        className="p-1 rounded-md opacity-70 group-hover:opacity-100 active:scale-95"
+                        className="p-1 rounded-md opacity-70 active:opacity-50"
                       >
                         <Ionicons
                           name="trash-outline"
@@ -194,7 +232,7 @@ export default function Sidebar({
 
   return (
     <View className="absolute left-0 top-0 bottom-0 right-0 z-50 flex-row bg-black/40">
-      <View className="h-full w-72 bg-white dark:bg-zinc-950 shadow-2xl">
+      <View className="h-full w-72 bg-[#f7f5ff] dark:bg-zinc-950 shadow-2xl">
         {renderContent()}
       </View>
       <Pressable className="flex-1 h-full" onPress={onClose} />

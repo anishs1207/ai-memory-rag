@@ -11,6 +11,7 @@
       "icon": "./assets/images/inqora-icon.png"
     },
     "android": {
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#101210",
         "foregroundImage": "./assets/images/inqora-icon.png"
@@ -26,13 +27,15 @@
       [
         "expo-splash-screen",
         {
-            "backgroundColor": "#101210",
-            "android": {
-              "image": "./assets/images/inqora-icon.png",
-              "imageWidth": 96
+          "backgroundColor": "#101210",
+          "android": {
+            "image": "./assets/images/inqora-icon.png",
+            "imageWidth": 96
           }
         }
-      ]
+      ],
+      "expo-sharing",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

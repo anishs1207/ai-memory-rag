@@ -15,7 +15,7 @@ const ENGINES = [
 
 export default function EngineSelector({ selectedLlm, onSelectLlm }: EngineSelectorProps) {
   return (
-    <View className="h-12 px-4 bg-white dark:bg-[#111512] border-b border-[#eceeea] dark:border-[#242a25] flex-row items-center">
+    <View className="h-14 mx-4 mb-3 px-3 bg-white dark:bg-[#171c18] border border-[#ebe7f7] dark:border-[#2a322c] rounded-2xl shadow-sm flex-row items-center">
       <Text className="mr-3 text-[12px] font-semibold text-[#8a918b] dark:text-[#858d86] uppercase tracking-wider">
         Model
       </Text>
@@ -33,7 +33,7 @@ export default function EngineSelector({ selectedLlm, onSelectLlm }: EngineSelec
                 onPress={() => onSelectLlm(engine.id as any)}
                 className={`px-3 py-1.5 rounded-full ${
                   isActive
-                    ? "bg-violet-100 dark:bg-violet-950/50"
+                    ? "bg-[#eee9ff] dark:bg-violet-950/50"
                     : "bg-transparent"
                 }`}
               >

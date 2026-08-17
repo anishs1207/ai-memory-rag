@@ -49,11 +49,11 @@ interface ModelSelectorProps {
 
 export default function ModelSelector({ selectedModel, onSelectModel }: ModelSelectorProps) {
   return (
-    <View className="pb-2.5 bg-white dark:bg-[#111512] border-b border-[#eceeea] dark:border-[#242a25]">
+    <View className="pb-3 bg-[#f7f5ff] dark:bg-[#111512]">
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+        contentContainerStyle={{ paddingHorizontal: 16, gap: 9 }}
       >
         {MODELS.map((model) => {
           const isActive = selectedModel === model.id;
@@ -62,10 +62,10 @@ export default function ModelSelector({ selectedModel, onSelectModel }: ModelSel
             <Pressable
               key={model.id}
               onPress={() => onSelectModel(model.id)}
-              className={`h-11 px-3.5 flex-row items-center rounded-full border ${
+              className={`h-12 px-4 flex-row items-center rounded-2xl border shadow-sm ${
                 isActive
-                  ? "bg-[#171b18] border-[#171b18] dark:bg-[#f3f4f1] dark:border-[#f3f4f1]"
-                  : "bg-[#f7f8f5] border-[#e6e9e3] dark:bg-[#1b211d] dark:border-[#2c342e]"
+                  ? "bg-[#28242f] border-[#28242f] dark:bg-[#f3f4f1] dark:border-[#f3f4f1]"
+                  : "bg-white border-[#ebe7f7] dark:bg-[#1b211d] dark:border-[#2c342e]"
               }`}
             >
               <Ionicons name={model.icon} size={18} color={isActive ? "#8b5cf6" : "#727a73"} />

@@ -217,7 +217,7 @@ export default function BudgetDashboard({ onClose }: BudgetDashboardProps) {
         {onClose && (
           <Pressable
             onPress={onClose}
-            className="p-1.5 rounded-full bg-gray-50 dark:bg-zinc-900 active:scale-95"
+            className="p-1.5 rounded-full bg-gray-50 dark:bg-zinc-900 active:opacity-60"
           >
             <Ionicons name="close" size={20} color="#687069" />
           </Pressable>
@@ -384,7 +384,7 @@ export default function BudgetDashboard({ onClose }: BudgetDashboardProps) {
                         </Text>
                         {/* Bar */}
                         <View
-                          className="w-full bg-pink-500/80 hover:bg-pink-600 rounded-t-md"
+                          className="w-full bg-pink-500/80 rounded-t-md"
                           style={{ height: `${Math.max(5, barHeight)}%` }}
                         />
                       </View>
@@ -487,7 +487,7 @@ export default function BudgetDashboard({ onClose }: BudgetDashboardProps) {
                       </Text>
                       <Pressable
                         onPress={() => handleDeleteExpense(e.id)}
-                        className="p-1 rounded-md bg-white dark:bg-zinc-800 active:scale-95 border border-gray-100 dark:border-zinc-700/50"
+                        className="p-1 rounded-md bg-white dark:bg-zinc-800 active:opacity-60 border border-gray-100 dark:border-zinc-700/50"
                       >
                         <Ionicons name="trash-outline" size={15} color="#ef4444" />
                       </Pressable>

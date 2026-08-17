@@ -239,7 +239,7 @@ export default function FileSelector({
               return (
                 <Pressable
                   onPress={() => onSelectFile(item)}
-                  className={`flex-row items-center space-x-1.5 px-3 py-2 rounded-xl border transition-colors ${
+                  className={`flex-row items-center space-x-1.5 px-3 py-2 rounded-xl border ${
                     isSelected
                       ? "bg-violet-50 dark:bg-violet-950/20 border-violet-200 dark:border-violet-900/50"
                       : "bg-white dark:bg-zinc-900 border-gray-100 dark:border-zinc-800"
