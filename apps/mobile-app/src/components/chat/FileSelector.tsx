@@ -6,7 +6,7 @@ import {
   ActivityIndicator,
   FlatList,
 } from "react-native";
-import { Upload, FileText, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { chatService } from "../../lib/api";
 
@@ -137,13 +137,13 @@ export default function FileSelector({
   };
 
   return (
-    <View className="bg-gray-50/50 dark:bg-zinc-900/20 border-b border-gray-100 dark:border-zinc-800/80 px-4 py-4 space-y-3">
+    <View className="bg-[#f7f8f5] dark:bg-[#151916] border-b border-[#e5e8e3] dark:border-[#29302b] px-4 py-4 space-y-3">
       {/* Title & Actions Row */}
       <View className="flex-row items-center justify-between">
         <View className="flex-row items-center space-x-2">
-          <FileText size={16} className="text-orange-500" />
-          <Text className="text-xs font-bold text-gray-800 dark:text-zinc-200">
-            PDF Document Context
+          <Ionicons name="document-text-outline" size={19} color="#7c3aed" />
+          <Text className="text-[14px] font-semibold text-gray-800 dark:text-zinc-200">
+            Document context
           </Text>
         </View>
 
@@ -151,21 +151,22 @@ export default function FileSelector({
           <Pressable
             onPress={handleRefresh}
             disabled={refreshing}
-            className="p-1.5 rounded-full bg-white dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700/50 active:scale-95 disabled:opacity-55"
+            className="size-10 items-center justify-center rounded-full bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 active:opacity-60 disabled:opacity-55"
           >
-            <RefreshCw
-              size={13}
-              className={`text-gray-500 dark:text-zinc-400 ${refreshing ? "animate-spin" : ""}`}
+            <Ionicons
+              name="refresh-outline"
+              size={16}
+              color="#687069"
             />
           </Pressable>
 
           <Pressable
             onPress={handlePickAndUpload}
             disabled={uploadState !== "idle" && uploadState !== "completed" && uploadState !== "failed"}
-            className="flex-row items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-orange-500 active:bg-orange-600 disabled:opacity-60"
+            className="h-10 flex-row items-center space-x-1.5 px-3.5 rounded-xl bg-[#171b18] dark:bg-[#f0f2ee] active:opacity-80 disabled:opacity-60"
           >
-            <Upload size={12} color="#ffffff" />
-            <Text className="text-[11px] font-bold text-white">Upload PDF</Text>
+            <Ionicons name="cloud-upload-outline" size={17} color="#8b5cf6" />
+            <Text className="text-[13px] font-semibold text-white dark:text-[#171b18]">Upload PDF</Text>
           </Pressable>
         </View>
       </View>
@@ -178,14 +179,14 @@ export default function FileSelector({
               {uploadState === "uploading" && <ActivityIndicator size="small" color="#f97316" />}
               {uploadState === "queued" && <ActivityIndicator size="small" color="#f97316" />}
               {uploadState === "indexing" && <ActivityIndicator size="small" color="#f97316" />}
-              {uploadState === "completed" && <CheckCircle2 size={16} color="#22c55e" />}
-              {uploadState === "failed" && <AlertCircle size={16} color="#ef4444" />}
+              {uploadState === "completed" && <Ionicons name="checkmark-circle-outline" size={18} color="#22c55e" />}
+              {uploadState === "failed" && <Ionicons name="alert-circle-outline" size={18} color="#ef4444" />}
               
-              <Text numberOfLines={1} className="text-xs font-semibold text-gray-700 dark:text-zinc-300 flex-1">
+              <Text numberOfLines={1} className="text-[14px] font-semibold text-gray-700 dark:text-zinc-300 flex-1">
                 {uploadFileName}
               </Text>
             </View>
-            <Text className="text-xs font-bold text-gray-500 dark:text-zinc-400">
+            <Text className="text-[13px] font-bold text-gray-500 dark:text-zinc-400">
               {uploadProgress}%
             </Text>
           </View>
@@ -202,7 +203,7 @@ export default function FileSelector({
 
           {/* Status hint text */}
           <View className="flex-row justify-between items-center">
-            <Text className="text-[10px] text-gray-400 dark:text-zinc-500 font-medium">
+            <Text className="text-[12px] leading-5 text-gray-500 dark:text-zinc-400 font-medium">
               {uploadState === "uploading" && "Uploading document to server..."}
               {uploadState === "queued" && "Queued: Waiting for indexing worker..."}
               {uploadState === "indexing" && "Indexing: Parsing pages & text embeddings..."}
@@ -211,7 +212,7 @@ export default function FileSelector({
             </Text>
             {uploadState === "failed" && (
               <Pressable onPress={() => setUploadState("idle")}>
-                <Text className="text-[10px] font-bold text-blue-500">Dismiss</Text>
+                <Text className="text-[12px] font-bold text-violet-600">Dismiss</Text>
               </Pressable>
             )}
           </View>
@@ -222,7 +223,7 @@ export default function FileSelector({
       <View>
         {files.length === 0 ? (
           <View className="py-2.5 items-center bg-white dark:bg-zinc-900 rounded-xl border border-dashed border-gray-200 dark:border-zinc-800">
-            <Text className="text-[11px] text-gray-400 dark:text-zinc-500 font-medium">
+            <Text className="text-[13px] text-gray-500 dark:text-zinc-400 font-medium">
               No files uploaded yet. Click Upload PDF to start.
             </Text>
           </View>
@@ -240,15 +241,15 @@ export default function FileSelector({
                   onPress={() => onSelectFile(item)}
                   className={`flex-row items-center space-x-1.5 px-3 py-2 rounded-xl border transition-colors ${
                     isSelected
-                      ? "bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-900/50"
+                      ? "bg-violet-50 dark:bg-violet-950/20 border-violet-200 dark:border-violet-900/50"
                       : "bg-white dark:bg-zinc-900 border-gray-100 dark:border-zinc-800"
                   }`}
                 >
-                  <FileText size={12} className={isSelected ? "text-orange-500" : "text-gray-400"} />
+                  <Ionicons name="document-text-outline" size={16} color={isSelected ? "#7c3aed" : "#9ca3af"} />
                   <Text
                     numberOfLines={1}
-                    className={`text-[11px] font-semibold max-w-[120px] ${
-                      isSelected ? "text-orange-600 dark:text-orange-400 font-bold" : "text-gray-600 dark:text-zinc-400"
+                    className={`text-[13px] font-semibold max-w-[140px] ${
+                      isSelected ? "text-violet-700 dark:text-violet-300 font-bold" : "text-gray-600 dark:text-zinc-400"
                     }`}
                   >
                     {item}

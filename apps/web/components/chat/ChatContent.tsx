@@ -57,6 +57,7 @@ import { Loader } from "@/components/prompt-kit/loader"
 import { BudgetModal } from "./BudgetModal"
 import { Wallet, BookOpen, Download } from "lucide-react"
 import { RagSources, type RagSource } from "./RagSources"
+import { SERVER_URL } from "@/lib/server-url"
 
 const MODEL_CONFIGS: Record<ModelType, { label: string; icon: any; color: string }> = {
     general: { label: "General", icon: Bot, color: "text-blue-500" },
@@ -110,8 +111,6 @@ type UploadQueueItem = {
     jobId?: string;
     error?: string;
 };
-
-const SERVER_URL = "";
 
 const ROUTE_MAP = {
     general: `${SERVER_URL}/api/v1/message/general`,

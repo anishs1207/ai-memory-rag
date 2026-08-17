@@ -3,13 +3,15 @@ import {
   View,
   Text,
   Pressable,
-  SafeAreaView,
   Platform,
   Dimensions,
   ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
 } from "react-native";
-import { Menu, RefreshCw, AlertTriangle } from "lucide-react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 // Imports from local layers
 import Sidebar from "../components/chat/Sidebar";
@@ -19,19 +21,21 @@ import FileSelector from "../components/chat/FileSelector";
 import ChatContent from "../components/chat/ChatContent";
 import BudgetDashboard from "../components/chat/BudgetDashboard";
 import {
-  Conversation,
   ChatMessage,
   ModelType,
   chatService,
 } from "../lib/api";
-import { storage } from "../lib/storage";
+import { useChatStore } from "../stores/chat-store";
 
 export default function HomeScreen() {
-  const insets = useSafeAreaInsets();
-  
   // State
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeId, setActiveId] = useState<string>("");
+  const conversations = useChatStore((state) => state.conversations);
+  const activeId = useChatStore((state) => state.activeId);
+  const hasHydrated = useChatStore((state) => state.hasHydrated);
+  const createChat = useChatStore((state) => state.createChat);
+  const deleteChat = useChatStore((state) => state.deleteChat);
+  const selectChat = useChatStore((state) => state.selectChat);
+  const updateChat = useChatStore((state) => state.updateChat);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [files, setFiles] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -64,21 +68,6 @@ export default function HomeScreen() {
     }
   };
 
-  const createInitialSession = () => {
-    const newChat: Conversation = {
-      id: Date.now().toString(),
-      title: "New Conversation",
-      model: "general",
-      messages: [],
-      timestamp: Date.now(),
-      llm: "gemini", // default to Gemini LLM
-    };
-    setConversations([newChat]);
-    setActiveId(newChat.id);
-    storage.setItem("rag_conversations", JSON.stringify([newChat]));
-    storage.setItem("rag_active_id", newChat.id);
-  };
-
   const fetchFiles = async () => {
     try {
       const res = await chatService.getFiles();
@@ -90,88 +79,26 @@ export default function HomeScreen() {
     }
   };
 
-  // Load conversations and files on mount
+  // Check the backend and load server-owned files on mount. Chats hydrate through Zustand.
   useEffect(() => {
     const initApp = async () => {
       await checkServerStatus();
-      
-      // Load conversations
-      const saved = await storage.getItem("rag_conversations");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved) as Conversation[];
-          setConversations(parsed);
-          
-          const savedActiveId = await storage.getItem("rag_active_id");
-          if (savedActiveId && parsed.some((c) => c.id === savedActiveId)) {
-            setActiveId(savedActiveId);
-          } else if (parsed.length > 0 && parsed[0]) {
-            setActiveId(parsed[0].id);
-          }
-        } catch (e) {
-          console.error("Failed to parse saved conversations", e);
-          createInitialSession();
-        }
-      } else {
-        createInitialSession();
-      }
-
-      // Fetch uploaded files
-      fetchFiles();
+      await fetchFiles();
     };
 
     initApp();
   }, []);
 
-  // Sync conversations to storage
-  const syncConversations = async (updated: Conversation[]) => {
-    setConversations(updated);
-    await storage.setItem("rag_conversations", JSON.stringify(updated));
-  };
-
   const handleNewChat = () => {
-    const newChat: Conversation = {
-      id: Date.now().toString(),
-      title: "New Conversation",
-      model: "general",
-      messages: [],
-      timestamp: Date.now(),
-      llm: "gemini", // default to Gemini LLM
-    };
-    const updated = [newChat, ...conversations];
-    syncConversations(updated);
-    setActiveId(newChat.id);
-    storage.setItem("rag_active_id", newChat.id);
+    createChat();
   };
 
   const handleDeleteChat = (id: string) => {
-    let updated = conversations.filter((c) => c.id !== id);
-    if (updated.length === 0) {
-      const newChat: Conversation = {
-        id: Date.now().toString(),
-        title: "New Conversation",
-        model: "general",
-        messages: [],
-        timestamp: Date.now(),
-      };
-      updated = [newChat];
-    }
-    
-    syncConversations(updated);
-    
-    // Adjust active ID if we deleted the current one
-    if (activeId === id) {
-      const nextActive = updated[0];
-      if (nextActive) {
-        setActiveId(nextActive.id);
-        storage.setItem("rag_active_id", nextActive.id);
-      }
-    }
+    deleteChat(id);
   };
 
   const handleSelectChat = (id: string) => {
-    setActiveId(id);
-    storage.setItem("rag_active_id", id);
+    selectChat(id);
   };
 
   const activeConversation =
@@ -179,27 +106,18 @@ export default function HomeScreen() {
 
   const handleSelectModel = (model: ModelType) => {
     if (!activeConversation) return;
-    const updated = conversations.map((c) =>
-      c.id === activeConversation.id ? { ...c, model } : c
-    );
-    syncConversations(updated);
+    updateChat(activeConversation.id, { model });
   };
 
   const handleSelectFile = (fileName: string) => {
     if (!activeConversation) return;
-    const updated = conversations.map((c) =>
-      c.id === activeConversation.id ? { ...c, selectedFile: fileName } : c
-    );
-    syncConversations(updated);
+    updateChat(activeConversation.id, { selectedFile: fileName });
   };
 
   // Update active conversation's LLM engine model
   const handleSelectLlm = (llm: "gemini" | "smollm" | "sf_financial_qa" | "dpo_adapter") => {
     if (!activeConversation) return;
-    const updated = conversations.map((c) =>
-      c.id === activeConversation.id ? { ...c, llm } : c
-    );
-    syncConversations(updated);
+    updateChat(activeConversation.id, { llm });
   };
 
   const handleSendMessage = async (text: string) => {
@@ -222,12 +140,7 @@ export default function HomeScreen() {
         : activeConversation.title;
 
     // Optimistic Update
-    const updatedConvList = conversations.map((c) =>
-      c.id === activeConversation.id
-        ? { ...c, messages: updatedMessages, title }
-        : c
-    );
-    await syncConversations(updatedConvList);
+    updateChat(activeConversation.id, { messages: updatedMessages, title });
 
     try {
       let assistantResponse = "";
@@ -294,12 +207,9 @@ export default function HomeScreen() {
         confirmed: false,
       };
 
-      const finalConversations = conversations.map((c) =>
-        c.id === activeConversation.id
-          ? { ...c, messages: [...updatedMessages, assistantMsg] }
-          : c
-      );
-      await syncConversations(finalConversations);
+      useChatStore.getState().updateChat(activeConversation.id, {
+        messages: [...updatedMessages, assistantMsg],
+      });
     } catch (err: any) {
       console.error("Message send failed:", err);
       const errMsg = err.response?.data?.error || err.message || "Network error. Make sure server is running.";
@@ -310,12 +220,9 @@ export default function HomeScreen() {
         error: true,
       };
 
-      const finalConversations = conversations.map((c) =>
-        c.id === activeConversation.id
-          ? { ...c, messages: [...updatedMessages, errorMsg] }
-          : c
-      );
-      await syncConversations(finalConversations);
+      useChatStore.getState().updateChat(activeConversation.id, {
+        messages: [...updatedMessages, errorMsg],
+      });
     } finally {
       setIsLoading(false);
     }
@@ -326,13 +233,10 @@ export default function HomeScreen() {
     const updatedMessages = activeConversation.messages.map((m) =>
       m.id === msgId ? { ...m, confirmed: true } : m
     );
-    const updated = conversations.map((c) =>
-      c.id === activeConversation.id ? { ...c, messages: updatedMessages } : c
-    );
-    syncConversations(updated);
+    updateChat(activeConversation.id, { messages: updatedMessages });
   };
 
-  if (!activeConversation) {
+  if (!hasHydrated || !activeConversation) {
     return (
       <View className="flex-1 justify-center items-center bg-white dark:bg-zinc-950">
         <ActivityIndicator size="large" color="#3b82f6" />
@@ -340,16 +244,14 @@ export default function HomeScreen() {
     );
   }
 
-  // Safe area padding for mobile
-  const contentPlatformPadding = Platform.select({
-    ios: { paddingTop: insets.top },
-    android: { paddingTop: insets.top },
-    web: { paddingTop: 0 }
-  });
-
   return (
-    <SafeAreaView style={[{ flex: 1, backgroundColor: "#ffffff" }, contentPlatformPadding]} className="dark:bg-zinc-950">
-      <View className="flex-1 flex-row bg-white dark:bg-zinc-950">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#ffffff" }} className="dark:bg-[#0e110f]">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <View className="flex-1 flex-row bg-white dark:bg-[#0e110f]">
         {/* Sidebar Left Navigation (Permanent on Desktop Web, Slide-over on mobile) */}
         <Sidebar
           isOpen={isSidebarOpen}
@@ -362,52 +264,40 @@ export default function HomeScreen() {
         />
 
         {/* Main Content Area */}
-        <View className="flex-1 flex-col h-full bg-white dark:bg-zinc-950">
+        <View className="flex-1 flex-col h-full bg-white dark:bg-[#0e110f]">
           {/* Header */}
-          <View className="flex-row items-center justify-between px-4 py-3.5 border-b border-gray-100 dark:border-zinc-900/60 bg-white dark:bg-zinc-950">
-            <View className="flex-row items-center space-x-3">
+          <View className="h-16 flex-row items-center justify-between px-4 bg-white dark:bg-[#0e110f]">
+            <View className="flex-row items-center flex-1">
               {/* Hamburger Button for mobile */}
               {!isLargeScreen && (
                 <Pressable
                   onPress={() => setIsSidebarOpen(true)}
-                  className="p-1.5 rounded-lg bg-gray-50 dark:bg-zinc-900 active:scale-95"
+                  className="size-11 mr-3 rounded-xl items-center justify-center bg-[#f5f6f3] dark:bg-[#1b211d] active:opacity-60"
                 >
-                  <Menu size={18} className="text-gray-600 dark:text-zinc-400" />
+                  <Ionicons name="menu-outline" size={24} color="#626a63" />
                 </Pressable>
               )}
 
-              <Text className="text-sm font-extrabold text-gray-900 dark:text-white tracking-tight">
-                {activeConversation.title || "Chat Session"}
+              <View className="flex-1">
+                <Text numberOfLines={1} className="text-[17px] font-semibold text-[#191d1a] dark:text-[#f1f3f0] max-w-[200px]">
+                  {activeConversation.title || "Chat Session"}
+                </Text>
+                <Text className="text-[12px] text-[#8a918b] dark:text-[#7f8880] capitalize">
+                  {activeConversation.model} assistant
+                </Text>
+              </View>
+            </View>
+
+            <Pressable
+              onPress={checkServerStatus}
+              className="h-10 px-3 rounded-full flex-row items-center bg-[#f5f6f3] dark:bg-[#1b211d] active:opacity-60"
+            >
+              <View className={`size-1.5 rounded-full mr-1.5 ${serverOnline ? "bg-emerald-500" : serverOnline === false ? "bg-rose-500" : "bg-amber-400"}`} />
+              <Text className="text-[12px] font-medium text-[#687069] dark:text-[#aeb5af]">
+                {serverOnline ? "Online" : serverOnline === false ? "Offline" : "Checking"}
               </Text>
-            </View>
-
-            <View className="flex-row items-center space-x-3">
-              {/* Server Offline Banner */}
-              {serverOnline === false && (
-                <View className="flex-row items-center space-x-1 px-2.5 py-1 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 rounded-full">
-                  <AlertTriangle size={10} color="#ef4444" />
-                  <Text className="text-[9px] font-bold text-red-500 uppercase">
-                    Offline
-                  </Text>
-                </View>
-              )}
-              {serverOnline === true && (
-                <View className="flex-row items-center space-x-1 px-2.5 py-1 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/40 rounded-full">
-                  <View className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                  <Text className="text-[9px] font-bold text-green-600 dark:text-green-400 uppercase">
-                    Server Online
-                  </Text>
-                </View>
-              )}
-
-              {/* Refresh connectivity status */}
-              <Pressable
-                onPress={checkServerStatus}
-                className="p-1.5 rounded-full bg-gray-50 dark:bg-zinc-900 border border-gray-100 dark:border-zinc-700/50 active:scale-95"
-              >
-                <RefreshCw size={12} className="text-gray-500 dark:text-zinc-400" />
-              </Pressable>
-            </View>
+              <Ionicons name="refresh-outline" size={14} color="#8a918b" style={{ marginLeft: 5 }} />
+            </Pressable>
           </View>
 
           {/* Model Selector Bar */}
@@ -448,7 +338,9 @@ export default function HomeScreen() {
             />
           )}
         </View>
-      </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

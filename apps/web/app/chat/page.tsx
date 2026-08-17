@@ -17,8 +17,7 @@ import {
     updateConversation as reduxUpdateConversation,
 } from "@/redux/chatSlice";
 import { Conversation } from "@/types";
-
-const SERVER_URL = "";
+import { SERVER_URL } from "@/lib/server-url";
 
 export default function FullChatApp() {
     const dispatch = useAppDispatch();

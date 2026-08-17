@@ -37,8 +37,7 @@ import {
     ChatContainerScrollAnchor,
 } from "@/components/prompt-kit/chat-container";
 import { ScrollButton } from "@/components/prompt-kit/scroll-button";
-
-const SERVER_URL = "";
+import { SERVER_URL } from "@/lib/server-url";
 
 const ROUTE_MAP = {
     general: `${SERVER_URL}/api/v1/message/general`,

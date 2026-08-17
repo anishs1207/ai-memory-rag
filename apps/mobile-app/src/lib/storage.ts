@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export const storage = {
+export const asyncStorageAdapter = {
   async getItem(key: string): Promise<string | null> {
     if (Platform.OS === "web") {
       try {
@@ -51,3 +51,6 @@ export const storage = {
     }
   },
 };
+
+// Kept as a small shared adapter for other persisted local features.
+export const storage = asyncStorageAdapter;

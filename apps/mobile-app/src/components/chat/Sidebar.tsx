@@ -6,7 +6,7 @@ import {
   ScrollView,
   Platform,
 } from "react-native";
-import { Plus, Trash2, Bot, X } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Conversation } from "../../lib/api";
 
 interface SidebarProps {
@@ -65,24 +65,24 @@ export default function Sidebar({
 
   // Sidebar container styles
   const sidebarClass = `
-    flex-col h-full bg-white dark:bg-zinc-950 border-r border-gray-100 dark:border-zinc-900 
+    flex-col h-full bg-[#f7f7f2] dark:bg-[#101411] border-r border-[#e7e9e3] dark:border-[#29312b]
     ${Platform.OS === "web" ? "w-72 md:flex" : "w-72"}
   `;
 
   const renderContent = () => (
     <View className="flex-1 flex-col h-full">
       {/* Header */}
-      <View className="flex-row items-center justify-between px-5 pt-6 pb-4 border-b border-gray-50 dark:border-zinc-900/60">
+      <View className="flex-row items-center justify-between px-5 pt-7 pb-5 border-b border-[#e7e9e3] dark:border-[#29312b]">
         <View className="flex-row items-center space-x-3">
-          <View className="bg-blue-600 p-2 rounded-xl">
-            <Bot size={20} color="#ffffff" />
+          <View className="bg-[#171b18] dark:bg-[#f1f3ef] p-2.5 rounded-xl">
+            <Ionicons name="sparkles-outline" size={22} color="#8b5cf6" />
           </View>
           <View>
-            <Text className="text-base font-extrabold text-gray-900 dark:text-white tracking-tight">
-              Agentic RAG
+            <Text className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">
+              Inqora
             </Text>
-            <Text className="text-[10px] text-gray-500 font-medium">
-              V1.0.0 • EXPO MOBILE
+            <Text className="text-[12px] text-gray-500 font-medium">
+              AI workspace
             </Text>
           </View>
         </View>
@@ -91,9 +91,9 @@ export default function Sidebar({
         {Platform.OS !== "web" && (
           <Pressable
             onPress={onClose}
-            className="p-1.5 rounded-full bg-gray-50 dark:bg-zinc-900"
+            className="size-10 items-center justify-center rounded-full bg-white dark:bg-zinc-900"
           >
-            <X size={18} className="text-gray-500 dark:text-zinc-400" />
+            <Ionicons name="close" size={22} color="#687069" />
           </Pressable>
         )}
       </View>
@@ -105,10 +105,10 @@ export default function Sidebar({
             onNewChat();
             if (Platform.OS !== "web") onClose();
           }}
-          className="flex-row items-center justify-center space-x-2 py-3 bg-gray-900 dark:bg-zinc-800 hover:bg-gray-800 dark:hover:bg-zinc-700 rounded-xl shadow-sm transition-all"
+          className="flex-row items-center justify-center space-x-2 py-4 bg-[#171b18] dark:bg-[#f1f3ef] rounded-2xl active:opacity-80"
         >
-          <Plus size={16} color="#ffffff" />
-          <Text className="text-sm font-semibold text-white">New Chat</Text>
+          <Ionicons name="add" size={21} color="#8b5cf6" />
+          <Text className="text-[15px] font-semibold text-white dark:text-[#171b18]">New chat</Text>
         </Pressable>
       </View>
 
@@ -116,14 +116,14 @@ export default function Sidebar({
       <ScrollView className="flex-1 px-3" showsVerticalScrollIndicator={false}>
         {conversations.length === 0 ? (
           <View className="py-8 items-center justify-center">
-            <Text className="text-xs text-gray-400 dark:text-zinc-500 font-medium">
+            <Text className="text-[14px] text-gray-500 dark:text-zinc-400 font-medium">
               No conversations yet
             </Text>
           </View>
         ) : (
           grouped.map((group) => (
             <View key={group.title} className="mb-5">
-              <Text className="text-[10px] font-extrabold text-gray-400 dark:text-zinc-500 uppercase tracking-widest px-3 mb-2">
+              <Text className="text-[12px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider px-3 mb-2">
                 {group.title}
               </Text>
               
@@ -135,7 +135,7 @@ export default function Sidebar({
                       key={chat.id}
                       className={`group flex-row items-center rounded-xl px-3 py-3 transition-colors ${
                         isActive
-                          ? "bg-blue-50/70 dark:bg-blue-950/20"
+                          ? "bg-violet-50 dark:bg-violet-950/20"
                           : "hover:bg-gray-50 dark:hover:bg-zinc-900/40"
                       }`}
                     >
@@ -148,9 +148,9 @@ export default function Sidebar({
                       >
                         <Text
                           numberOfLines={1}
-                          className={`text-xs font-semibold tracking-wide ${
+                          className={`text-[14px] font-semibold ${
                             isActive
-                              ? "text-blue-600 dark:text-blue-400"
+                              ? "text-violet-700 dark:text-violet-300"
                               : "text-gray-700 dark:text-zinc-300"
                           }`}
                         >
@@ -163,13 +163,10 @@ export default function Sidebar({
                         onPress={() => onDeleteChat(chat.id)}
                         className="p-1 rounded-md opacity-70 group-hover:opacity-100 active:scale-95"
                       >
-                        <Trash2
-                          size={13}
-                          className={
-                            isActive
-                              ? "text-blue-500 dark:text-blue-400"
-                              : "text-gray-400 dark:text-zinc-500 hover:text-red-500"
-                          }
+                        <Ionicons
+                          name="trash-outline"
+                          size={16}
+                          color={isActive ? "#7c3aed" : "#9ca3af"}
                         />
                       </Pressable>
                     </View>
@@ -181,26 +178,6 @@ export default function Sidebar({
         )}
       </ScrollView>
 
-      {/* User Footer Profile */}
-      <View className="p-4 border-t border-gray-50 dark:border-zinc-900/60 bg-gray-50/50 dark:bg-zinc-950/40">
-        <View className="flex-row items-center justify-between">
-          <View className="flex-row items-center space-x-3">
-            <View className="size-9 bg-blue-100 dark:bg-blue-900/30 rounded-full items-center justify-center border border-blue-200/50 dark:border-blue-900/50">
-              <Text className="text-xs font-bold text-blue-600 dark:text-blue-400">
-                U
-              </Text>
-            </View>
-            <View className="max-w-[130px]">
-              <Text className="text-xs font-semibold text-gray-800 dark:text-white truncate">
-                Demo User
-              </Text>
-              <Text className="text-[9px] text-gray-400 dark:text-zinc-500 truncate">
-                user@example.com
-              </Text>
-            </View>
-          </View>
-        </View>
-      </View>
     </View>
   );
 

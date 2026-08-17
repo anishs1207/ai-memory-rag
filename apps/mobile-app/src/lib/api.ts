@@ -107,21 +107,23 @@ export const chatService = {
 
   // Upload file (PDF)
   async uploadFile(formData: FormData, onProgress?: (percent: number) => void) {
-    const response = await api.post<{
-      success: boolean;
-      jobId?: string;
-      error?: string;
-    }>("/api/v1/message/upload-file", formData, {
+    const uploadConfig = {
       headers: {
         "Content-Type": "multipart/form-data",
       },
-      onUploadProgress: (progressEvent) => {
+      onUploadProgress: (progressEvent: { loaded: number; total?: number }) => {
         if (onProgress && progressEvent.total) {
           const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
           onProgress(percent);
         }
       },
-    });
+    } as unknown as Parameters<typeof api.post>[2];
+
+    const response = await api.post<{
+      success: boolean;
+      jobId?: string;
+      error?: string;
+    }>("/api/v1/message/upload-file", formData, uploadConfig);
     return response.data;
   },
 
