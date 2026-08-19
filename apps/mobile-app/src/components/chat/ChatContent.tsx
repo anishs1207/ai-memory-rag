@@ -16,8 +16,10 @@ import * as Clipboard from "expo-clipboard";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import * as Speech from "expo-speech";
+import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from "expo-audio";
 import { ChatAttachment, Conversation, SERVER_URL } from "../../lib/api";
 import { useChatStore } from "../../stores/chat-store";
+import { useUserStore } from "../../stores/user-store";
 
 interface ChatContentProps {
   conversation: Conversation;
@@ -32,7 +34,7 @@ interface ChatContentProps {
 }
 
 // Custom Markdown text parser to render headers, bold text, and lists cleanly
-function FormattedText({ text, isUser }: { text: string; isUser: boolean }) {
+function FormattedText({ text, isUser, scale = 1 }: { text: string; isUser: boolean; scale?: number }) {
   const textColor = isUser ? "text-white" : "text-gray-800 dark:text-zinc-200";
   const lines = text.split("\n");
   const rendered: React.ReactNode[] = [];
@@ -85,7 +87,7 @@ function FormattedText({ text, isUser }: { text: string; isUser: boolean }) {
     const heading = line.match(/^(#{1,3})\s(.+)/);
     if (heading) {
       const size = heading[1]?.length === 1 ? "text-[20px]" : heading[1]?.length === 2 ? "text-[18px]" : "text-[16px]";
-      rendered.push(<Text key={index} className={`${size} font-bold mt-3 mb-1 ${textColor}`}>{parseInline(heading[2] || "", isUser)}</Text>);
+      rendered.push(<Text key={index} style={{ fontSize: (heading[1]?.length === 1 ? 20 : heading[1]?.length === 2 ? 18 : 16) * scale }} className={`${size} font-bold mt-3 mb-1 ${textColor}`}>{parseInline(heading[2] || "", isUser)}</Text>);
       continue;
     }
 
@@ -95,7 +97,7 @@ function FormattedText({ text, isUser }: { text: string; isUser: boolean }) {
       rendered.push(
         <View key={index} className="flex-row items-start pl-1 my-0.5">
           <Text className={`w-7 text-[15px] leading-6 ${textColor}`}>{numbered ? `${numbered[1]}.` : "•"}</Text>
-          <Text className={`text-[15px] leading-6 flex-1 ${textColor}`}>{parseInline((bullet?.[1] || numbered?.[2]) ?? "", isUser)}</Text>
+          <Text style={{ fontSize: 15 * scale, lineHeight: 24 * scale }} className={`flex-1 ${textColor}`}>{parseInline((bullet?.[1] || numbered?.[2]) ?? "", isUser)}</Text>
         </View>
       );
       continue;
@@ -106,7 +108,7 @@ function FormattedText({ text, isUser }: { text: string; isUser: boolean }) {
       continue;
     }
 
-    rendered.push(<Text key={index} className={`text-[15px] leading-6 ${textColor}`}>{line ? parseInline(line, isUser) : "\n"}</Text>);
+    rendered.push(<Text key={index} style={{ fontSize: 15 * scale, lineHeight: 24 * scale }} className={textColor}>{line ? parseInline(line, isUser) : "\n"}</Text>);
   }
 
   return <View className="gap-0.5">{rendered}</View>;
@@ -138,11 +140,22 @@ export default function ChatContent({
   const [showReasoning, setShowReasoning] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null); // tracks the last copied message ID for micro-feedback
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(audioRecorder, 250);
   const scrollViewRef = useRef<ScrollView>(null);
   const savedPrompts = useChatStore((state) => state.savedPrompts);
   const savePrompt = useChatStore((state) => state.savePrompt);
   const removePrompt = useChatStore((state) => state.removePrompt);
   const updateChat = useChatStore((state) => state.updateChat);
+  const preferences = useUserStore((state) => state.preferences);
+  const messageScale = preferences.fontScale === "extra-large" ? 1.25 : preferences.fontScale === "large" ? 1.12 : 1;
+  const loadingMascot = !preferences.mascotMotion
+    ? require("../../../assets/images/inqora-mascot.png")
+    : preferences.mascotSpeed === "calm"
+      ? require("../../../assets/images/inqora-mascot-wave-calm.gif")
+      : preferences.mascotSpeed === "lively"
+        ? require("../../../assets/images/inqora-mascot-wave-lively.gif")
+        : require("../../../assets/images/inqora-mascot-wave.gif");
 
   // Handle clipboard text copy with micro-interaction state
   const handleCopyMessage = async (msgId: string, content: string) => {
@@ -161,7 +174,7 @@ export default function ChatContent({
   }, [conversation.messages.length, isLoading]);
 
   const handleSend = () => {
-    const text = inputText.trim();
+    const text = inputText.trim() || (attachments.length ? "Please review the attached file." : "");
     if (!text || isLoading) return;
     onSendMessage(text, attachments);
     setInputText("");
@@ -199,6 +212,28 @@ export default function ChatContent({
         kind: "image" as const,
       })),
     ]);
+  };
+
+  const toggleRecording = async () => {
+    if (recorderState.isRecording) {
+      await audioRecorder.stop();
+      if (audioRecorder.uri) {
+        setAttachments((current) => [...current, {
+          id: `${Date.now()}-voice`,
+          name: `Voice note ${Math.max(1, Math.round(recorderState.durationMillis / 1000))}s.m4a`,
+          uri: audioRecorder.uri,
+          mimeType: "audio/m4a",
+          kind: "audio",
+        }]);
+      }
+      await setAudioModeAsync({ allowsRecording: false });
+      return;
+    }
+    const permission = await AudioModule.requestRecordingPermissionsAsync();
+    if (!permission.granted) return;
+    await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+    await audioRecorder.prepareToRecordAsync();
+    audioRecorder.record();
   };
 
   const promptIdeas: {
@@ -292,7 +327,7 @@ export default function ChatContent({
                     }`}
                   >
                     {/* Render message content */}
-                    <FormattedText text={msg.content} isUser={isUser} />
+                    <FormattedText text={msg.content} isUser={isUser} scale={messageScale} />
                     {isError && (
                       <Pressable onPress={() => msg.retryText ? onRetryMessage(msg.retryText) : onRetryConnection()} className="mt-3 h-10 rounded-xl bg-rose-100 dark:bg-rose-950/40 flex-row items-center justify-center">
                         <Ionicons name="refresh-outline" size={17} color="#e05267" />
@@ -312,6 +347,17 @@ export default function ChatContent({
                             <Text numberOfLines={1} className={`flex-1 ml-2 text-[12px] font-semibold ${isUser ? "text-white" : "text-gray-700 dark:text-zinc-200"}`}>{attachment.name}</Text>
                           </View>
                         ))}
+                      </View>
+                    )}
+
+                    {isUser && (
+                      <View className="flex-row justify-end mt-2">
+                        <Pressable onPress={() => setInputText(msg.content)} className="p-1.5 rounded-lg active:opacity-60" accessibilityLabel="Edit and resend message">
+                          <Ionicons name="pencil-outline" size={15} color="#ffffff" />
+                        </Pressable>
+                        <Pressable onPress={() => Share.share({ message: msg.content })} className="p-1.5 rounded-lg active:opacity-60" accessibilityLabel="Share message">
+                          <Ionicons name="share-outline" size={15} color="#ffffff" />
+                        </Pressable>
                       </View>
                     )}
 
@@ -397,7 +443,7 @@ export default function ChatContent({
                   {msg.comparison && (
                     <View className="mt-2 p-3.5 rounded-2xl bg-[#f0ecff] dark:bg-[#242b26] border border-[#ddd5fb] dark:border-[#343d36]">
                       <Text className="text-[11px] font-bold uppercase tracking-wider text-[#6d5dfb] mb-2">Compared with {msg.comparison.label}</Text>
-                      <FormattedText text={msg.comparison.content} isUser={false} />
+                      <FormattedText text={msg.comparison.content} isUser={false} scale={messageScale} />
                     </View>
                   )}
 
@@ -499,7 +545,7 @@ export default function ChatContent({
         {isLoading && (
           <View className="flex-row justify-start mb-4">
             <View className="size-9 bg-[#28242f] dark:bg-zinc-800 rounded-full items-center justify-center mr-3">
-              <Ionicons name="sparkles-outline" size={16} color="#a993ff" />
+              <Image source={loadingMascot} className="size-9" resizeMode="contain" accessibilityLabel="Qori is thinking" />
             </View>
             <View className="px-4 py-3 bg-white dark:bg-zinc-900 border border-gray-150 dark:border-zinc-800 rounded-2xl rounded-tl-none">
               <ActivityIndicator size="small" color="#3b82f6" />
@@ -528,6 +574,9 @@ export default function ChatContent({
         <Pressable onPress={pickImage} className="size-10 rounded-xl items-center justify-center active:opacity-60" accessibilityLabel="Attach image">
           <Ionicons name="image-outline" size={21} color="#746d7c" />
         </Pressable>
+        <Pressable onPress={toggleRecording} className={`size-10 rounded-xl items-center justify-center ${recorderState.isRecording ? "bg-rose-100 dark:bg-rose-950/30" : ""}`} accessibilityLabel={recorderState.isRecording ? "Stop voice recording" : "Record voice note"}>
+          <Ionicons name={recorderState.isRecording ? "stop" : "mic-outline"} size={20} color={recorderState.isRecording ? "#e05267" : "#746d7c"} />
+        </Pressable>
         <TextInput
           value={inputText}
           onChangeText={(value) => { setInputText(value); updateChat(conversation.id, { draft: value }); }}
@@ -539,12 +588,12 @@ export default function ChatContent({
 
         <Pressable
           onPress={handleSend}
-          disabled={!inputText.trim() || isLoading}
+          disabled={(!inputText.trim() && attachments.length === 0) || isLoading}
           className={`size-11 ml-2 rounded-2xl items-center justify-center ${
-            inputText.trim() && !isLoading ? "bg-[#6d5dfb] dark:bg-[#f0f2ee] active:opacity-70" : "bg-[#eeeaf6] dark:bg-[#2a312c]"
+            (inputText.trim() || attachments.length > 0) && !isLoading ? "bg-[#6d5dfb] dark:bg-[#f0f2ee] active:opacity-70" : "bg-[#eeeaf6] dark:bg-[#2a312c]"
           }`}
         >
-          <Ionicons name="arrow-up" size={20} color={inputText.trim() && !isLoading ? "#ffffff" : "#9b94a5"} />
+          <Ionicons name="arrow-up" size={20} color={(inputText.trim() || attachments.length > 0) && !isLoading ? "#ffffff" : "#9b94a5"} />
         </Pressable>
         {!!inputText.trim() && (
           <Pressable onPress={() => savePrompt(inputText.trim())} className="size-10 ml-1 rounded-xl items-center justify-center active:opacity-60" accessibilityLabel="Save prompt">

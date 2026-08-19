@@ -58,6 +58,17 @@ export default function AccountSheet({ visible, onClose }: AccountSheetProps) {
     { text: "Clear", style: "destructive", onPress: clearChats },
   ]);
 
+  const deleteLocalData = () => Alert.alert("Delete all local data?", "This resets your profile, preferences, onboarding and every conversation. This cannot be undone.", [
+    { text: "Cancel", style: "cancel" },
+    { text: "Delete everything", style: "destructive", onPress: async () => {
+      clearChats();
+      await useChatStore.persist.clearStorage();
+      await useUserStore.persist.clearStorage();
+      logout();
+      onClose();
+    } },
+  ]);
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View className="flex-1 justify-end bg-black/30">
@@ -134,12 +145,32 @@ export default function AccountSheet({ visible, onClose }: AccountSheetProps) {
               ))}
             </View>
 
+            <Text className="text-[12px] font-bold uppercase tracking-wider text-[#8c8495] mb-2 ml-1">Text size</Text>
+            <View className="flex-row gap-2 mb-4">
+              {(["standard", "large", "extra-large"] as const).map((size) => (
+                <Pressable key={size} onPress={() => updatePreferences({ fontScale: size })} className={`flex-1 h-12 rounded-2xl items-center justify-center ${preferences.fontScale === size ? "bg-[#6d5dfb]" : "bg-white dark:bg-[#1b1620]"}`}>
+                  <Text className={`${size === "extra-large" ? "text-[15px]" : size === "large" ? "text-[14px]" : "text-[12px]"} font-bold capitalize ${preferences.fontScale === size ? "text-white" : "text-[#756d80] dark:text-[#cfc5d8]"}`}>{size.replace("-", " ")}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text className="text-[12px] font-bold uppercase tracking-wider text-[#8c8495] mb-2 ml-1">Mascot speed</Text>
+            <View className="flex-row gap-2 mb-4">
+              {(["calm", "normal", "lively"] as const).map((speed) => (
+                <Pressable key={speed} onPress={() => updatePreferences({ mascotSpeed: speed })} className={`flex-1 h-12 rounded-2xl items-center justify-center ${preferences.mascotSpeed === speed ? "bg-[#6d5dfb]" : "bg-white dark:bg-[#1b1620]"}`}>
+                  <Text className={`text-[12px] font-bold capitalize ${preferences.mascotSpeed === speed ? "text-white" : "text-[#756d80] dark:text-[#cfc5d8]"}`}>{speed}</Text>
+                </Pressable>
+              ))}
+            </View>
+
             <Text className="text-[12px] font-bold uppercase tracking-wider text-[#8c8495] mb-2 ml-1">Data</Text>
             <View className="p-3 bg-white dark:bg-[#1b1620] rounded-[24px] border border-[#e9e3f1] dark:border-[#312a38] mb-4">
               <Text className="px-2 pb-2 text-[12px] text-[#8a8292] dark:text-[#978e9f]">{conversations.length} local conversations · approximately {Math.max(1, Math.round(JSON.stringify(conversations).length / 1024))} KB</Text>
               <Pressable onPress={exportData} className="h-12 px-3 flex-row items-center"><Ionicons name="share-outline" size={18} color="#6d5dfb" /><Text className="ml-3 text-[14px] font-semibold text-[#38313f] dark:text-white">Export my data</Text></Pressable>
               <View className="h-px bg-[#eee9f3] dark:bg-[#312a38]" />
               <Pressable onPress={confirmClearChats} className="h-12 px-3 flex-row items-center"><Ionicons name="trash-outline" size={18} color="#e05267" /><Text className="ml-3 text-[14px] font-semibold text-rose-500">Clear conversations</Text></Pressable>
+              <View className="h-px bg-[#eee9f3] dark:bg-[#312a38]" />
+              <Pressable onPress={deleteLocalData} className="h-12 px-3 flex-row items-center"><Ionicons name="warning-outline" size={18} color="#e05267" /><Text className="ml-3 text-[14px] font-semibold text-rose-500">Delete all local data</Text></Pressable>
             </View>
 
             <Pressable onPress={save} className="h-14 bg-[#6d5dfb] rounded-[20px] items-center justify-center active:opacity-80"><Text className="text-[15px] font-bold text-white">Save changes</Text></Pressable>

@@ -217,6 +217,7 @@ function HomeScreen() {
 
     try {
       let assistantResponse = "";
+      let uploadedFile = activeConversation.selectedFile;
       let pdfUrl: string | undefined = undefined;
       let mockReasoning = undefined;
       let mockTools = undefined;
@@ -224,6 +225,29 @@ function HomeScreen() {
 
       const isAnalyze = text.toLowerCase().includes("analyze");
       const isConfirm = text.toLowerCase().includes("confirm");
+
+      for (const attachment of attachments.filter((item) => item.kind === "document" || item.kind === "image")) {
+        const formData = new FormData();
+        formData.append("file", {
+          uri: attachment.uri,
+          name: attachment.name,
+          type: attachment.mimeType || (attachment.kind === "image" ? "image/jpeg" : "application/pdf"),
+        } as unknown as Blob);
+        const upload = await chatService.uploadFile(formData);
+        if (!upload.success) throw new Error(upload.error || `Could not upload ${attachment.name}`);
+        uploadedFile = attachment.name;
+        if (upload.jobId) {
+          for (let attempt = 0; attempt < 30; attempt += 1) {
+            const status = await chatService.getUploadStatus(upload.jobId);
+            if (status.data.state === "completed") break;
+            if (status.data.state === "failed") throw new Error(status.data.failedReason || `Could not process ${attachment.name}`);
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          }
+        }
+      }
+      if (uploadedFile && uploadedFile !== activeConversation.selectedFile) {
+        updateChat(activeConversation.id, { selectedFile: uploadedFile });
+      }
 
       if (activeConversation.model === "research") {
         const res = await chatService.sendMessage("research", text, activeConversation.llm || "gemini", controller.signal);
@@ -234,11 +258,11 @@ function HomeScreen() {
         } else {
           assistantResponse = "Failed to generate research report.";
         }
-      } else if (activeConversation.model === "pdf") {
-        if (!activeConversation.selectedFile) {
+      } else if (activeConversation.model === "pdf" || attachments.length > 0) {
+        if (!uploadedFile) {
           assistantResponse = "Please upload or select a PDF document first before querying.";
         } else {
-          const res = await chatService.sendPdfMessage(text, activeConversation.selectedFile, activeConversation.llm || "gemini", controller.signal);
+          const res = await chatService.sendPdfMessage(text, uploadedFile, activeConversation.llm || "gemini", controller.signal);
           assistantResponse = res.data || "No response generated from file.";
         }
       } else if (activeConversation.model === "budget") {
@@ -280,8 +304,21 @@ function HomeScreen() {
         confirmed: false,
       };
 
+      const responseChunks = assistantResponse.match(/[\s\S]{1,48}/g) || [assistantResponse];
+      let streamed = "";
       useChatStore.getState().updateChat(activeConversation.id, {
-        messages: [...updatedMessages, assistantMsg],
+        messages: [...updatedMessages, { ...assistantMsg, content: "", pending: true }],
+      });
+      for (const chunk of responseChunks) {
+        if (controller.signal.aborted) break;
+        streamed += chunk;
+        useChatStore.getState().updateChat(activeConversation.id, {
+          messages: [...updatedMessages, { ...assistantMsg, content: streamed, pending: true }],
+        });
+        await new Promise((resolve) => setTimeout(resolve, 22));
+      }
+      useChatStore.getState().updateChat(activeConversation.id, {
+        messages: [...updatedMessages, { ...assistantMsg, content: streamed, pending: false }],
       });
       if (preferences.speakResponses && assistantResponse) Speech.speak(assistantResponse);
     } catch (err: any) {

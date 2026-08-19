@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Animated, Image, Text, View } from "react-native";
+import { useUserStore } from "../../stores/user-store";
 
 type AnimatedMascotProps = {
   greeting?: string;
@@ -8,6 +9,14 @@ type AnimatedMascotProps = {
 
 export default function AnimatedMascot({ greeting = "Hello, explorer!", size = 210 }: AnimatedMascotProps) {
   const [bubble] = useState(() => new Animated.Value(0));
+  const preferences = useUserStore((state) => state.preferences);
+  const mascotSource = !preferences.mascotMotion
+    ? require("../../../assets/images/inqora-mascot.png")
+    : preferences.mascotSpeed === "calm"
+      ? require("../../../assets/images/inqora-mascot-wave-calm.gif")
+      : preferences.mascotSpeed === "lively"
+        ? require("../../../assets/images/inqora-mascot-wave-lively.gif")
+        : require("../../../assets/images/inqora-mascot-wave.gif");
 
   useEffect(() => {
     const animation = Animated.spring(bubble, {
@@ -34,7 +43,7 @@ export default function AnimatedMascot({ greeting = "Hello, explorer!", size = 2
         <Text className="text-[14px] font-semibold text-[#393340] dark:text-white">{greeting}</Text>
       </Animated.View>
       <Image
-        source={require("../../../assets/images/inqora-mascot-wave.gif")}
+        source={mascotSource}
         resizeMode="contain"
         style={{ width: size, height: size }}
         accessibilityLabel="Inqora's friendly corgi space explorer mascot waving hello"

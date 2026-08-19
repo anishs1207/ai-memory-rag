@@ -1,0 +1,9 @@
+{
+  "prompt": "wave twice and celebrate happily",
+  "actions": [
+    "wave",
+    "bounce"
+  ],
+  "speed": "lively",
+  "frames": 24
+}

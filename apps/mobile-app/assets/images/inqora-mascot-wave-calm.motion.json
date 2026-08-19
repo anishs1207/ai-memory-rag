@@ -1,0 +1,8 @@
+{
+  "prompt": "wave twice and say hello",
+  "actions": [
+    "wave"
+  ],
+  "speed": "calm",
+  "frames": 24
+}
